@@ -6,6 +6,10 @@
 #   pip install numpy
 #   pip install git+https://github.com/flaviens/makeelf@finercontrol
 
+# Run::
+#
+#   python hacking.py
+
 # ``design-processing/design_repos.json`` defines the location of hardware design
 # which is out of this repository and must be adjusted.
 
