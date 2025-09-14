@@ -280,9 +280,11 @@ def calibrate_spikespeed(numinstrs:int = 10000) -> list:
     )
 
     ns_before = time_ns()
-    subprocess.run(spike_shell_command, capture_output=True)
+    #subprocess.run(spike_shell_command, capture_output=True)
+    print('DEBUG: mock spike_shell_command: %s' % ' '.join(spike_shell_command))
     ns_elapsed = time_ns()-ns_before
 
+    print(f'DEBUG: {NO_REMOVE_TMPFILES=}')
     if not NO_REMOVE_TMPFILES:
         os.remove(path_to_debug_file)
         os.remove(elfpath)

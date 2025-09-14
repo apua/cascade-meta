@@ -34,12 +34,18 @@ def gen_elf(inbytes: bytes, start_addr: int, section_addr: int, destination_path
     with open(destination_path, 'wb') as f:
         f.write(elf_bytes)
 
+    print(f'DEBUG: {section_addr=}')
+    print(f'DEBUG: {is_64bit=}')
     # Relocate the section
     if section_addr is not None:
         if is_64bit:
-            subprocess.run([f"riscv{os.environ['CASCADE_RISCV_BITWIDTH']}-unknown-elf-objcopy", '--change-section-address', f".text.init={hex(section_addr)}", '-I', 'elf32-littleriscv', '-O', 'elf64-littleriscv', destination_path])
+            #subprocess.run([f"riscv{os.environ['CASCADE_RISCV_BITWIDTH']}-unknown-elf-objcopy", '--change-section-address', f".text.init={hex(section_addr)}", '-I', 'elf32-littleriscv', '-O', 'elf64-littleriscv', destination_path])
+            # XXX: common/profiledesign.py:profile_get_medeleg_mask → common/profiledesign.py:__get_medeleg_mask → cascade/genelf.py:gen_elf_from_bbs → HERE
+            print('DEBUG: mock system call `%s`' % ' '.join([f"riscv{os.environ['CASCADE_RISCV_BITWIDTH']}-unknown-elf-objcopy", '--change-section-address', f".text.init={hex(section_addr)}", '-I', 'elf32-littleriscv', '-O', 'elf64-littleriscv', destination_path]))
         else:
-            subprocess.run([f"riscv{os.environ['CASCADE_RISCV_BITWIDTH']}-unknown-elf-objcopy", '--change-section-address', f".text.init={hex(section_addr)}", destination_path])
+            #subprocess.run([f"riscv{os.environ['CASCADE_RISCV_BITWIDTH']}-unknown-elf-objcopy", '--change-section-address', f".text.init={hex(section_addr)}", destination_path])
+            # XXX: common/spike.py:calibrate_spikespeed → HERE
+            print(f'DEBUG: mock system call `%s`' % ' '.join([f"riscv{os.environ['CASCADE_RISCV_BITWIDTH']}-unknown-elf-objcopy", '--change-section-address', f".text.init={hex(section_addr)}", destination_path]))
     else:
         if is_64bit:
             subprocess.run([f"riscv{os.environ['CASCADE_RISCV_BITWIDTH']}-unknown-elf-objcopy", '-I', 'elf32-littleriscv', '-O', 'elf64-littleriscv', destination_path])
