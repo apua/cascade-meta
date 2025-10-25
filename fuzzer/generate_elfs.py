@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 """
-Generate a desired number of Cascade ELF files without running RTL simulation.
+Requirements::
 
-This is a small CLI that directly calls Cascade's program generator and Spike
-resolution to produce ELFs, avoiding the RTL profiling step.
+    pip install -U pip
+    pip install numpy tqdm filelock git+https://github.com/flaviens/makeelf@finercontrol
+    module load sifive/freedom-tools/toolsuite
+    module load dtc
 
-Prereqs:
-- Source cascade-meta/env.sh (sets toolchain and CASCADE_* env vars)
-- Have a valid design cfg (CASCADE_DESIGN_PROCESSING_ROOT points to design repos containing <repo>/meta/cfg.json)
-- spike available in PATH (used during calibration)
-- makeelf installed (finercontrol) so EM_RISCV etc. exist
+Run::
 
-Example:
-  source cascade-meta/env.sh
-  python3 cascade-meta/fuzzer/generate_elfs.py --design rocket --outdir ./elfs --num 10
+    python fuzzer/generate_elfs.py --design kronos
 """
 
 import argparse
