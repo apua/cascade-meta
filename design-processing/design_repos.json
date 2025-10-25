@@ -3,7 +3,7 @@
     "cva6-c1": "../../cascade-designs/cascade-cva6-c1/cascade",
     "cva6-y1": "../../cascade-designs/cascade-cva6-y1/cascade",
     "rocket": "../../cascade-designs/cascade-chipyard/cascade-rocket",
-    "boom": "../cascade-designs/cascade-chipyard/cascade-boom",
+    "boom": "../../cascade-designs/cascade-chipyard/cascade-boom",
     "boom-b1": "../../cascade-designs/cascade-chipyard-b1/cascade-boom",
     "picorv32": "../../cascade-designs/cascade-picorv32/cascade",
     "picorv32-p5": "../../cascade-designs/cascade-picorv32-p5/cascade",

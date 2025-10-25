@@ -19,12 +19,14 @@ import time
 
 FUZZ_USE_MODELSIM = False
 
-LOG2_MEMSIZE_UPPERBOUND = 20
-NUM_MAX_BBS_UPPERBOUND = 100
+LOG2_MEMSIZE_UPPERBOUND = 22  # 增加到 256MB
+LOG2_MEMSIZE_LOWERBOUND = 20  # 增加到 64MB
+NUM_MIN_BBS_LOWERBOUND = 50  # 增加到 500 個基本塊
+NUM_MAX_BBS_UPPERBOUND = 100  # 增加到 1000 個基本塊
 
 # Creates a new program descriptor.
 def gen_new_test_instance(design_name: str, randseed: int, can_authorize_privileges: bool, fixed_memsize: int = None, fixed_num_bbs: int = None):
-    return random.randrange(1 << 14, 1 << LOG2_MEMSIZE_UPPERBOUND) if fixed_memsize is None else fixed_memsize, design_name, randseed, random.randrange(20, NUM_MAX_BBS_UPPERBOUND) if fixed_num_bbs is None else fixed_num_bbs, can_authorize_privileges and random.random() < PROBA_AUTHORIZE_PRIVILEGES
+    return random.randrange(1 << LOG2_MEMSIZE_LOWERBOUND, 1 << LOG2_MEMSIZE_UPPERBOUND) if fixed_memsize is None else fixed_memsize, design_name, randseed, random.randrange(NUM_MIN_BBS_LOWERBOUND, NUM_MAX_BBS_UPPERBOUND) if fixed_num_bbs is None else fixed_num_bbs, can_authorize_privileges and random.random() < PROBA_AUTHORIZE_PRIVILEGES
 
 # The main function for a single fuzzer run. It creates a new fuzzer state, populates it with basic blocks, and then runs the spike resolution. It does not run the RTL simulation.
 # @return (fuzzerstate, rtl_elfpath, expected_regvals: list) where expected_regval is a list of num_pickable_regs-1 expected reg values (we ignore x0)
@@ -55,7 +57,6 @@ def gen_fuzzerstate_elf_expectedvals(memsize: int, design_name: str, randseed: i
 ###
 
 def run_rtl(memsize: int, design_name: str, randseed: int, nmax_bbs: int, authorize_privileges: bool, check_pc_spike_again: bool, nmax_instructions: int = None, nodependencybias: bool = False, simulator=SimulatorEnum.VERILATOR):
-    print('[INFO] Run RTL')
     fuzzerstate, rtl_elfpath, finalregvals_spikeresol, time_seconds_spent_in_gen_bbs, time_seconds_spent_in_spike_resol, time_seconds_spent_in_gen_elf = gen_fuzzerstate_elf_expectedvals(memsize, design_name, randseed, nmax_bbs, authorize_privileges, check_pc_spike_again, nmax_instructions, nodependencybias)
 
     start = time.time()

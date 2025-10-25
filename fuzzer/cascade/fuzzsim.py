@@ -43,10 +43,7 @@ def runsim_verilator(design_name, simlen, elfpath, num_int_regs: int = MAX_NUM_P
     sim_executable_path  = os.path.abspath(os.path.join(builddir, simdir, verilatordir, verilator_executable))
 
     # Run Verilator
-    #exec_out = subprocess.run([sim_executable_path], check=True, text=True, capture_output=True, env=my_env)
-    print('DEBUG: sim_executable_path `%s`' % sim_executable_path)
-    exec_out = lambda:0
-    exec_out.stdout = open('verilator.out').read()
+    exec_out = subprocess.run([sim_executable_path], check=True, text=True, capture_output=True, env=my_env)
     outlines = list(filter(lambda l: 'Writing ELF word to' not in l, exec_out.stdout.split('\n')))
 
     # Check stop success

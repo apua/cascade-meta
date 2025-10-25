@@ -53,7 +53,7 @@ MAX_NUM_FENCES_PER_EXECUTION = 10
 
 # Stop generating instructions when the memory saturation reaches this level.
 # In other words, if the memory is occupied by more than this amount, then do not start generating new basic blocks.
-LIMIT_MEM_SATURATION_RATIO = 0.8
+LIMIT_MEM_SATURATION_RATIO = 0.9  # 增加到 90%
 
 
 ###

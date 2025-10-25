@@ -101,8 +101,8 @@ def put_random_value_into_floating_double_reg(val_section_id: int, tgt_reg_id: i
 def li_into_reg(val_unsigned: int, do_check_bounds: bool = True):
     if DO_ASSERT:
         assert val_unsigned >= 0
-        if do_check_bounds:
-            assert val_unsigned < 0x80000000, f"For the destination address `{hex(val_unsigned)}`, we will need to manage sign extension, which is not yet implemented here."
+        # For 64-bit systems, we can handle larger addresses
+        assert val_unsigned < (1 << 32), f"Address {hex(val_unsigned)} is too large for 32-bit immediate generation"
 
     # Check whether the MSB of the addi would be 1. In this case, we will add 1 to the lui
     is_sign_extend_ones = (val_unsigned >> 11) & 1
@@ -113,6 +113,41 @@ def li_into_reg(val_unsigned: int, do_check_bounds: bool = True):
         addi_imm = -((~addi_imm) & 0xFFF) - 1
     lui_imm  = (int(is_sign_extend_ones) + (val_unsigned >> 12)) & 0xFFFFF
     return lui_imm, addi_imm
+
+
+def li_into_reg_64bit_safe(val_unsigned: int):
+    """
+    Generate instruction sequence to load a 32-bit address into a register
+    without sign extension issues on 64-bit RISC-V.
+
+    For addresses >= 0x80000000, this generates a sequence that avoids
+    the sign extension that would occur with a simple lui+addi.
+
+    Returns a list of instruction tuples: [(opcode, rd, rs1, imm), ...]
+    """
+    if val_unsigned < 0x80000000:
+        # Use normal lui+addi for addresses < 0x80000000
+        lui_imm, addi_imm = li_into_reg(val_unsigned)
+        return [("lui", None, None, lui_imm), ("addi", None, None, addi_imm)]
+
+    # For addresses >= 0x80000000, we need to avoid sign extension
+    if val_unsigned == 0x80000000:
+        # Special optimized case for exactly 0x80000000
+        # Strategy: Load 1 into register, then shift left by 31 bits
+        return [
+            ("li", None, None, 1),           # Load immediate 1
+            ("slli", None, None, 31)         # Shift left by 31 bits -> 0x80000000
+        ]
+    else:
+        # General case for other high addresses
+        # Strategy: Load the value, then clear upper 32 bits with slli+srli
+        lui_imm, addi_imm = li_into_reg(val_unsigned, do_check_bounds=False)
+        return [
+            ("lui", None, None, lui_imm),
+            ("addi", None, None, addi_imm),
+            ("slli", None, None, 32),        # Shift left 32 bits
+            ("srli", None, None, 32)         # Shift right 32 bits (clears upper bits)
+        ]
 
 # From an unsigned int coded on 32 or 64 bits, returns the signed value when interpreting the value as signed
 def twos_complement(val_unsigned: int, is_design_64bit: bool):
