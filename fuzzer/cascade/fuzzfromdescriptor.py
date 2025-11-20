@@ -83,6 +83,7 @@ def run_rtl(memsize: int, design_name: str, randseed: int, nmax_bbs: int, author
 def fuzz_single_from_descriptor(memsize: int, design_name: str, randseed: int, nmax_bbs: int, authorize_privileges: bool, loggers: list = None, check_pc_spike_again: bool = False, start_time: float = None):
     try:
         gathered_times = run_rtl(memsize, design_name, randseed, nmax_bbs, authorize_privileges, check_pc_spike_again)
+        1/0
         if loggers is not None:
             loggers[random.randrange(len(loggers))].log(True, {'memsize': memsize, 'design_name': design_name, 'randseed': randseed, 'nmax_bbs': nmax_bbs, 'authorize_privileges': authorize_privileges}, False, '') # No message for successful runs
         else:

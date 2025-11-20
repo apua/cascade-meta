@@ -45,6 +45,8 @@ def runsim_verilator(design_name, simlen, elfpath, num_int_regs: int = MAX_NUM_P
     # Run Verilator
     #exec_out = subprocess.run([sim_executable_path], check=True, text=True, capture_output=True, env=my_env)
     print('DEBUG: sim_executable_path `%s`' % sim_executable_path)
+    import subprocess as sp; sp.run('ls -l cascade-data', shell=1)
+    import traceback; traceback.print_stack()
     exec_out = lambda:0
     exec_out.stdout = open('verilator.out').read()
     outlines = list(filter(lambda l: 'Writing ELF word to' not in l, exec_out.stdout.split('\n')))
@@ -169,6 +171,7 @@ def runtest_simulator(fuzzerstate, elfpath: str, expected_regvals: tuple, overri
         is_stop_successful, received_regvals = runsim_modelsim(fuzzerstate.design_name, num_instrs*MAX_CYCLES_PER_INSTR + SETUP_CYCLES, elfpath, fuzzerstate.num_pickable_regs-1, fuzzerstate.num_pickable_floating_regs)
     else:
         raise NotImplementedError(f"Unknown simulator {simulator}")
+    1/0
 
     # Check successful stop
     if not is_stop_successful:
