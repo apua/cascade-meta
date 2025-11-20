@@ -16,11 +16,8 @@ import subprocess
 # @param section_addr may be None
 # @return None
 def gen_elf(inbytes: bytes, start_addr: int, section_addr: int, destination_path: str, is_64bit: bool) -> None:
-    print(f'{EM.EM_RISCV=}')
-    print(f'{ELFDATA.ELFDATA2LSB=}')
+    print(f'{is_64bit=}')
     print(f'{hex(start_addr)=}')
-    #exit(1)
-    #print(f'{is_64bit=}')
     start_addr = 0x80000000
     elf = ELF(e_machine=EM.EM_RISCV, e_data=ELFDATA.ELFDATA2LSB, e_entry=start_addr)
 
