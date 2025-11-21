@@ -3,7 +3,7 @@
 # Python dependnecies::
 #
 #   pip install -U pip
-#   pip install numpy
+#   pip install numpy filelock
 #   pip install git+https://github.com/flaviens/makeelf@finercontrol
 
 # Run::
