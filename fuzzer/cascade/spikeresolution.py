@@ -190,9 +190,11 @@ def _feed_regdump_to_instrs(fuzzerstate, regdumps: list):
                 if bb_instr.producer_id in producer_id_to_rdepval:
                     # Rationale: target_addr = rdep ^ rprod, where target_addr is spike_resolution_offset
                     bb_instr.rtl_offset = producer_id_to_rdepval[bb_instr.producer_id] ^ bb_instr.spike_resolution_offset ^ SPIKE_STARTADDR
+                    print(1, bb_instr, bb_instr.rtl_offset)
                 else:
                     # If this producer is never used, then we need to ensure that it remains the same as in the Spike resolution
                     bb_instr.rtl_offset = bb_instr.spike_resolution_offset
+                    print(2, bb_instr, bb_instr.rtl_offset)
 
 def _transmit_addrs_to_producers_for_spike_resolution(fuzzerstate):
     for bb_instrlist in fuzzerstate.instr_objs_seq:
@@ -242,7 +244,16 @@ def spike_resolution(fuzzerstate, check_pc_spike_again: bool = False):
     regdump_reqs = gen_regdump_reqs(fuzzerstate)
     flat_instr_objs = list(itertools.chain.from_iterable(fuzzerstate.instr_objs_seq))
     # len(flat_instr_objs)+1: the +1 is to reach the final basic block and thereby overwrite the potential destination register of a jal/jalr
-    regvals, (finalintregvals_spikeresol, finalfpuregvals_spikeresol) = run_trace_regs_at_pc_locs(fuzzerstate.instance_to_str(), spike_resolution_elfpath, get_design_march_flags_nocompressed(design_name), SPIKE_STARTADDR, regdump_reqs, True, fuzzerstate.final_bb_base_addr+SPIKE_STARTADDR, fuzzerstate.num_pickable_floating_regs if fuzzerstate.design_has_fpu else 0, fuzzerstate.design_has_fpud)
+    regvals, (finalintregvals_spikeresol, finalfpuregvals_spikeresol) = run_trace_regs_at_pc_locs(
+            fuzzerstate.instance_to_str(),
+            spike_resolution_elfpath,
+            get_design_march_flags_nocompressed(design_name),
+            SPIKE_STARTADDR,
+            regdump_reqs,
+            True,
+            fuzzerstate.final_bb_base_addr+SPIKE_STARTADDR,
+            fuzzerstate.num_pickable_floating_regs if fuzzerstate.design_has_fpu else 0, fuzzerstate.design_has_fpud
+            )
     if not NO_REMOVE_TMPFILES:
         os.remove(spike_resolution_elfpath)
         del spike_resolution_elfpath
@@ -256,6 +267,10 @@ def spike_resolution(fuzzerstate, check_pc_spike_again: bool = False):
     if check_pc_spike_again:
         # Generate the RTL ELF, but located for spike at SPIKE_STARTADDR
         rtl_spike_elfpath = gen_elf_from_bbs(fuzzerstate, False, 'spikedoublecheck', fuzzerstate.instance_to_str(), SPIKE_STARTADDR)
+        print('==========>', fuzzerstate)
+        print('==========>', rtl_spike_elfpath)
+        print('==========>', fuzzerstate.instance_to_str())
+        print('==========>', SPIKE_STARTADDR)
         if NO_REMOVE_TMPFILES:
             print('rtl_spike_elfpath:', rtl_spike_elfpath)
         rtl_spike_pc_seq, (finalintregvals_spikecheck, finalfpuregvals_spikecheck) = run_trace_all_pcs(fuzzerstate.instance_to_str(), rtl_spike_elfpath, get_design_march_flags_nocompressed(design_name), len(flat_instr_objs)+1, SPIKE_STARTADDR, True,  fuzzerstate.num_pickable_floating_regs if fuzzerstate.design_has_fpu else 0, fuzzerstate.design_has_fpud, fuzzerstate)

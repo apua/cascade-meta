@@ -141,10 +141,11 @@ def run_trace_regs_at_pc_locs(identifier_str: str, elfpath: str, rvflags: str, s
         elfpath
     )
 
-    try:
-        spike_out = subprocess.run(spike_shell_command, capture_output=True, timeout=get_spike_timeout_seconds()).stderr
-    except Exception as e:
-        raise Exception(f"Spike timeout (A) for identifier str: {identifier_str}. Command: {' '.join(filter(lambda s: '--debug-cmd' not in s, spike_shell_command))}  Debug file: {path_to_debug_file}")
+    spike_out = subprocess.run(spike_shell_command, capture_output=True).stderr
+    #try:
+    #    spike_out = subprocess.run(spike_shell_command, capture_output=True, timeout=get_spike_timeout_seconds()).stderr
+    #except Exception as e:
+    #    raise Exception(f"Spike timeout (A) for identifier str: {identifier_str}. Command: {' '.join(filter(lambda s: '--debug-cmd' not in s, spike_shell_command))}  Debug file: {path_to_debug_file}")
     if not NO_REMOVE_TMPFILES:
         os.remove(path_to_debug_file)
         del path_to_debug_file
@@ -246,13 +247,17 @@ def run_trace_all_pcs(identifier_str: str, elfpath: str, rvflags: str, numinstrs
 SPIKE_TIMEOUT_SLACK_FACTOR = 1000 # We automatically add this factor to the timeout, to account for the fact that the spike speed is not perfectly calibrated or the subprocess may require some more time in a busy system.
 __spike_ns_per_instr = None
 
-def _get_spike_ns_per_instr() -> int:
-    if __spike_ns_per_instr is None:
-        raise Exception('Spike speed not calibrated yet.')
-    return __spike_ns_per_instr
+#def _get_spike_ns_per_instr() -> int:
+#    if __spike_ns_per_instr is None:
+#        raise Exception('Spike speed not calibrated yet.')
+#    return __spike_ns_per_instr
+#
+#def get_spike_timeout_seconds() -> int:
+#    return max((SPIKE_TIMEOUT_SLACK_FACTOR*_get_spike_ns_per_instr())/1e9, 10)
+def get_spike_timeout_seconds():
+    import traceback; traceback.print_stack()
+    return 10
 
-def get_spike_timeout_seconds() -> int:
-    return max((SPIKE_TIMEOUT_SLACK_FACTOR*_get_spike_ns_per_instr())/1e9, 10)
 
 # @brief Runs a spike instance and returns the average nanoseconds per instruction.
 @cache
