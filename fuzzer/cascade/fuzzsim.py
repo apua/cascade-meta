@@ -38,8 +38,6 @@ def runsim_verilator(
     get_rfuzz_coverage_mask = False
     assert coveragepath is None or not get_rfuzz_coverage_mask
 
-    import subprocess as sp; sp.run('ls -l cascade-data', shell=1)  # when was ELF being renamed to "rtl-*"?
-
     #print('\033[31m', end='')
     #print(f'{design_name=}')
     #print(f'{simlen=}')
@@ -63,9 +61,11 @@ def runsim_verilator(
     design_cfg       = designcfgs.get_design_cfg(design_name)
     cascadedir       = designcfgs.get_design_cascade_path(design_name)
     builddir         = os.path.join(cascadedir,'build')
-    print(f'{design_cfg=}')
-    print(f'{cascadedir=}')
-    print(f'{builddir=}')
+    #print('\033[35m', end='')
+    #print(f'{design_cfg=}')
+    #print(f'{cascadedir=}')
+    #print(f'{builddir=}')
+    #print('\033[m', end='')
     # design_cfg={
     #   'misaligned_data_supported': False,
     #   'privlvs': 'msu',
@@ -98,8 +98,8 @@ def runsim_verilator(
     # Run Verilator
     #exec_out = subprocess.run([sim_executable_path], check=True, text=True, capture_output=True, env=my_env)
     #outlines = list(filter(lambda l: 'Writing ELF word to' not in l, exec_out.stdout.split('\n')))
-    print('DEBUG: sim_executable_path `%s`' % sim_executable_path)
-    import traceback; traceback.print_stack()
+    print('\033[35m[DEBUG]\033[m sim_executable_path `%s`' % sim_executable_path)
+    #import traceback; traceback.print_stack()
     exec_out = lambda:0
     exec_out.stdout = open('verilator.out').read()
     outlines = [line for line in exec_out.stdout.splitlines() if not line.startswith('Writing ELF word to')]

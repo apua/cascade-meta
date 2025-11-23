@@ -16,8 +16,7 @@ import subprocess
 # @param section_addr may be None
 # @return None
 def gen_elf(inbytes: bytes, start_addr: int, section_addr: int, destination_path: str, is_64bit: bool) -> None:
-    print(f'{is_64bit=}')
-    print(f'{hex(start_addr)=}')
+    print(f'\033[35m[DEBUG]\033[m {is_64bit=} {hex(start_addr)=}')
     start_addr = 0x80000000
     elf = ELF(e_machine=EM.EM_RISCV, e_data=ELFDATA.ELFDATA2LSB, e_entry=start_addr)
 
@@ -25,7 +24,7 @@ def gen_elf(inbytes: bytes, start_addr: int, section_addr: int, destination_path
     SH_FLAGS = 0x6 # Loadable and executable
     section_id = elf.append_section('.text.init', inbytes, start_addr, sh_flags=SH_FLAGS, sh_addralign=4)
     elf.append_segment(section_id, addr=start_addr, p_offset=0xe2) # Very hacky, we hardcode the section offset.
-    print(type(elf))
+    print(f'\033[35m[DEBUG]\033[m {type(elf)=}')
     elf_bytes = bytes(elf) # We first cast to bytes, since casting to bytes has side-effects (such as offset computation) on the ELF object, that are taken into account just before the bytes are generated.
 
     # Check that the offsets in the program header and in the section header match
@@ -33,8 +32,7 @@ def gen_elf(inbytes: bytes, start_addr: int, section_addr: int, destination_path
     assert elf.Elf.Phdr_table[0].p_offset == elf.Elf.Shdr_table[-1].sh_offset, "In ELF: offset mismatch between Phdr and Shdr. Maybe the hack with makeelf did not work this time."
 
     # Finally, write the bytes into the ELF object
-    print(f'{destination_path=}')
-    
+    print(f'\033[35m[DEBUG]\033[m {destination_path=}')
     with open(destination_path, 'wb') as f:
         f.write(elf_bytes)
     #exit(2)
@@ -48,7 +46,7 @@ def gen_elf(inbytes: bytes, start_addr: int, section_addr: int, destination_path
             ' -I elf32-littleriscv -O elf64-littleriscv'
            f' {destination_path}'
         )
-        print('DEBUG: %s' % cmd)
+        print('\033[35m[DEBUG]\033[m %s' % cmd)
         subprocess.run(cmd, shell=True, check=True)
         subprocess.run('file %s' % destination_path, shell=True)
         #import traceback; traceback.print_stack()

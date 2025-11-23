@@ -185,16 +185,19 @@ def _feed_regdump_to_instrs(fuzzerstate, regdumps: list):
 
     # Feed the consumer-level information into the producers
     for bb_instrlist in fuzzerstate.instr_objs_seq:
+        print(f'\033[36m[TRACE]\033[m {len(bb_instrlist)=}')
+        #for index, bb_instr in enumerate(bb_instrlist): print(index, getattr(bb_instr, 'instr_str', None))
         for bb_instr in bb_instrlist:
-            if isinstance(bb_instr, PlaceholderProducerInstr0) or isinstance(bb_instr, PlaceholderProducerInstr1):
+            if isinstance(bb_instr, (PlaceholderProducerInstr0, PlaceholderProducerInstr1)):
+                print(f'\033[36m[TRACE]\033[m {bb_instr.producer_id=}')
                 if bb_instr.producer_id in producer_id_to_rdepval:
                     # Rationale: target_addr = rdep ^ rprod, where target_addr is spike_resolution_offset
                     bb_instr.rtl_offset = producer_id_to_rdepval[bb_instr.producer_id] ^ bb_instr.spike_resolution_offset ^ SPIKE_STARTADDR
-                    print(1, bb_instr, bb_instr.rtl_offset)
+                    print(f'\033[36m[TRACE]\033[m (1) {bb_instr.producer_id=} {hex(bb_instr.rtl_offset)=}')
                 else:
                     # If this producer is never used, then we need to ensure that it remains the same as in the Spike resolution
                     bb_instr.rtl_offset = bb_instr.spike_resolution_offset
-                    print(2, bb_instr, bb_instr.rtl_offset)
+                    print(f'\033[36m[TRACE]\033[m (2) {bb_instr.producer_id=} {hex(bb_instr.rtl_offset)=}')
 
 def _transmit_addrs_to_producers_for_spike_resolution(fuzzerstate):
     for bb_instrlist in fuzzerstate.instr_objs_seq:
@@ -254,9 +257,9 @@ def spike_resolution(fuzzerstate, check_pc_spike_again: bool = False):
             fuzzerstate.final_bb_base_addr+SPIKE_STARTADDR,
             fuzzerstate.num_pickable_floating_regs if fuzzerstate.design_has_fpu else 0, fuzzerstate.design_has_fpud
             )
-    if not NO_REMOVE_TMPFILES:
-        os.remove(spike_resolution_elfpath)
-        del spike_resolution_elfpath
+    #if not NO_REMOVE_TMPFILES:
+    #    os.remove(spike_resolution_elfpath)
+    #    del spike_resolution_elfpath
 
     # IMPORTANT: We reset the randomness here to have deterministic branch instructions.
     # (Rare) example where it matters: assume we need to pop the last bb, say with id 20. Then we could have a bug with request size 19 but not with request size 20, or vice versa.
@@ -264,19 +267,20 @@ def spike_resolution(fuzzerstate, check_pc_spike_again: bool = False):
     _feed_regdump_to_instrs(fuzzerstate, regvals)
 
     # Use spike to check the rtl elf if requested
+    assert check_pc_spike_again is True
     if check_pc_spike_again:
         # Generate the RTL ELF, but located for spike at SPIKE_STARTADDR
         rtl_spike_elfpath = gen_elf_from_bbs(fuzzerstate, False, 'spikedoublecheck', fuzzerstate.instance_to_str(), SPIKE_STARTADDR)
-        print('==========>', fuzzerstate)
-        print('==========>', rtl_spike_elfpath)
-        print('==========>', fuzzerstate.instance_to_str())
-        print('==========>', SPIKE_STARTADDR)
-        if NO_REMOVE_TMPFILES:
+        print(f'\033[35m[DEBUG]\033[m {fuzzerstate=}')
+        print(f'\033[35m[DEBUG]\033[m {rtl_spike_elfpath=}')
+        print(f'\033[35m[DEBUG]\033[m {fuzzerstate.instance_to_str()=}')
+        print(f'\033[35m[DEBUG]\033[m {SPIKE_STARTADDR=}')
+        if 1 or NO_REMOVE_TMPFILES:
             print('rtl_spike_elfpath:', rtl_spike_elfpath)
         rtl_spike_pc_seq, (finalintregvals_spikecheck, finalfpuregvals_spikecheck) = run_trace_all_pcs(fuzzerstate.instance_to_str(), rtl_spike_elfpath, get_design_march_flags_nocompressed(design_name), len(flat_instr_objs)+1, SPIKE_STARTADDR, True,  fuzzerstate.num_pickable_floating_regs if fuzzerstate.design_has_fpu else 0, fuzzerstate.design_has_fpud, fuzzerstate)
-        if not NO_REMOVE_TMPFILES:
-            os.remove(rtl_spike_elfpath)
-            del rtl_spike_elfpath
+        #if not NO_REMOVE_TMPFILES:
+        #    os.remove(rtl_spike_elfpath)
+        #    del rtl_spike_elfpath
 
         # Check PC sequence
         _check_pc_trace_from_spike(fuzzerstate, rtl_spike_pc_seq)

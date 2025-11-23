@@ -11,7 +11,7 @@ DESIGN_REPOS_JSON_NAME = "design_repos.json"
 def get_design_cascade_path(design_name):
     # 1. Find the designs folder.
     designs_folder = os.getenv("CASCADE_DESIGN_PROCESSING_ROOT")
-    print(f'DEBUG: {designs_folder=}')
+    #print(f'DEBUG: {designs_folder=}')
     if not designs_folder:
         raise Exception("Please re-source env.sh first, in the meta repo, and run from there, not this repo. See README.md in the meta repo")
     # 2. Find the repo name.

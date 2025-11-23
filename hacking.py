@@ -69,9 +69,11 @@ descriptor = Descriptor(881540, 'boom', 5000017, 51, True)
 #runtest_simulator(fuzzerstate, rtl_elfpath, finalregvals_spikeresol)
 # ====
 
+print('\033[33m[INFO] gen_basicblocks\033[m')
 import random
-from cascade.fuzzerstate import FuzzerState
 random.seed(descriptor.randseed)
+
+from cascade.fuzzerstate import FuzzerState
 fuzzerstate = FuzzerState(
         0x80000000,
         descriptor.design_name,
@@ -85,12 +87,14 @@ fuzzerstate = FuzzerState(
 from cascade.basicblock import gen_basicblocks
 gen_basicblocks(fuzzerstate)
 
+print('\033[33m[INFO] spike_resolution\033[m')
 from cascade.spikeresolution import spike_resolution
 expected_intregvals, expected_floatregvals = spike_resolution(fuzzerstate, check_pc_spike_again=True)
 assert len(expected_intregvals) >= fuzzerstate.num_pickable_regs-1
 assert fuzzerstate.design_has_fpu is True
 assert len(expected_floatregvals) == fuzzerstate.num_pickable_floating_regs
 
+print('\033[33m[INFO] gen_elf_from_bbs\033[m')
 from cascade.genelf import gen_elf_from_bbs
 rtl_elfpath = gen_elf_from_bbs(
         fuzzerstate,
@@ -100,19 +104,22 @@ rtl_elfpath = gen_elf_from_bbs(
         start_addr=fuzzerstate.design_base_addr,
         )
 
-from cascade.fuzzsim import runsim_verilator
-num_instrs = sum(map(len, fuzzerstate.instr_objs_seq))
-MAX_CYCLES_PER_INSTR = 30
-SETUP_CYCLES = 1000
-is_stop_successful, received_regvals = runsim_verilator(
-            fuzzerstate.design_name,
-            num_instrs*MAX_CYCLES_PER_INSTR + SETUP_CYCLES,
-            rtl_elfpath,
-            fuzzerstate.num_pickable_regs-1,
-            fuzzerstate.num_pickable_floating_regs)
+print('\033[32m================\033[m')
 
-print('\033[33m'+'='*30+'\033[m')
-print(f'{descriptor=}')
-print('\033[33m'+'='*30+'\033[m')
-assert is_stop_successful is True
-assert (L := tuple(map(len, received_regvals))) == (23, 9), L
+#print('\033[33m[INFO] runsim_verilator\033[m')
+#from cascade.fuzzsim import runsim_verilator
+#num_instrs = sum(map(len, fuzzerstate.instr_objs_seq))
+#MAX_CYCLES_PER_INSTR = 30
+#SETUP_CYCLES = 1000
+#is_stop_successful, received_regvals = runsim_verilator(
+#            fuzzerstate.design_name,
+#            num_instrs*MAX_CYCLES_PER_INSTR + SETUP_CYCLES,
+#            rtl_elfpath,
+#            fuzzerstate.num_pickable_regs-1,
+#            fuzzerstate.num_pickable_floating_regs)
+#
+#print('\033[33m'+'='*30+'\033[m')
+#print(f'{descriptor=}')
+#print('\033[33m'+'='*30+'\033[m')
+#assert is_stop_successful is True
+#assert (L := tuple(map(len, received_regvals))) == (23, 9), L

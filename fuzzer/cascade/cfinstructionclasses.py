@@ -959,6 +959,7 @@ class PlaceholderProducerInstr0:
         self.is_design_64bit = is_design_64bit
 
     def gen_bytecode_int(self, is_spike_resolution: bool):
+        #print(f'{self.rtl_offset=} {is_spike_resolution=} {self=}')
         # If this is the spike resolution, then load the target address using lui
         if is_spike_resolution:
             if DO_ASSERT:
