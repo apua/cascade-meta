@@ -271,32 +271,45 @@ def calibrate_spikespeed(numinstrs:int = 10000) -> list:
     from time import time_ns
 
     # First, create the file that contains the commands, if it does not already exist
-    path_to_debug_file = __gen_spike_dbgcmd_file_for_trace_pcs('spikespeedcalibration', numinstrs, SPIKE_STARTADDR, True, 16)
+    SPIKE_STARTADDR = 0x80000000
+    path_to_debug_file = __gen_spike_dbgcmd_file_for_trace_pcs(
+            identifier_str='spikespeedcalibration',
+            numinstrs=10000,
+            startpc=SPIKE_STARTADDR,
+            dump_final_reg_vals=True,
+            num_fp_regs=16)
 
     # Second, generate a dummy ELF file containing an infinite loop
-    elfpath = os.path.join(PATH_TO_TMP, 'spikespeedcalibration.elf')
-    gen_elf(rv32i_jal(0, 0).to_bytes(4, 'little'), SPIKE_STARTADDR, SPIKE_STARTADDR, elfpath, False)
+    #elfpath = os.path.join(PATH_TO_TMP, 'spikespeedcalibration.elf')
+    gen_elf(
+            inbytes=rv32i_jal(0, 0).to_bytes(4, 'little'),
+            start_addr=SPIKE_STARTADDR,
+            section_addr=SPIKE_STARTADDR,
+            destination_path='cascade-data/spikespeedcalibration.elf',
+            is_64bit=False)
 
     # Run the Spike command
-    spike_shell_command = (
-        "spike",
-        "-d",
-        f"--debug-cmd={path_to_debug_file}",
-        f"--isa={'rv32i'}",
-        f"--pc={SPIKE_STARTADDR}",
-        elfpath
-    )
+    #spike_shell_command = (
+    #    "spike",
+    #    "-d",
+    #    f"--debug-cmd={path_to_debug_file}",
+    #    f"--isa={'rv32i'}",
+    #    f"--pc={SPIKE_STARTADDR}",
+    #    elfpath
+    #)
+    spike_shell_command = 'spike -d --debug-cmd=cascade-data/dbgcmds/cmds_trace_pcs_spikespeedcalibration --isa=rv32i --pc=2147483648 cascade-data/spikespeedcalibration.elf'
 
     ns_before = time_ns()
-    #subprocess.run(spike_shell_command, capture_output=True)
-    print('DEBUG: mock spike_shell_command: %s' % ' '.join(spike_shell_command))
+    subprocess.run(spike_shell_command, shell=1)
+    #print('DEBUG: mock spike_shell_command: %s' % ' '.join(spike_shell_command))
     ns_elapsed = time_ns()-ns_before
 
-    print(f'DEBUG: {NO_REMOVE_TMPFILES=}')
-    if not NO_REMOVE_TMPFILES:
-        os.remove(path_to_debug_file)
-        os.remove(elfpath)
-        del path_to_debug_file
-        del elfpath
+    #print(f'DEBUG: {NO_REMOVE_TMPFILES=}')
+    #if not NO_REMOVE_TMPFILES:
+    #    os.remove(path_to_debug_file)
+    #    os.remove(elfpath)
+    #    del path_to_debug_file
+    #    del elfpath
 
     __spike_ns_per_instr = ns_elapsed / numinstrs
+    print(f'{ns_elapsed=} {__spike_ns_per_instr=}')
