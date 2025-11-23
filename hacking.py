@@ -48,23 +48,71 @@ descriptor = (881540, design_name, 5000017, 51, True)
 
 print('\033[33m[INFO] emulation\033[m')
 print('\033[33m' + '='*60 + '\033[m')
-from cascade.fuzzfromdescriptor import (
-    #fuzz_single_from_descriptor,
-    #run_rtl,
-    gen_fuzzerstate_elf_expectedvals,
-    runtest_simulator,
-    )
-#fuzz_single_from_descriptor(*descriptor, check_pc_spike_again=True)
 
 from collections import namedtuple
 Descriptor = namedtuple('Descriptor', 'memsize design_name randseed nmax_bbs authorize_privileges')
 descriptor = Descriptor(881540, 'boom', 5000017, 51, True)
+
+#from cascade.fuzzfromdescriptor import fuzz_single_from_descriptor
+#fuzz_single_from_descriptor(*descriptor, check_pc_spike_again=True)
 #fuzz_single_from_descriptor(descriptor, check_pc_spike_again=True)
+# ====
+
+#from cascade.fuzzfromdescriptor import run_rtl
+#fuzz_single_from_descriptor(*descriptor, check_pc_spike_again=True)
 #gathered_times = run_rtl(descriptor, check_pc_spike_again=True)
-fuzzerstate, rtl_elfpath, finalregvals_spikeresol, *time_seconds_spent = \
-        gen_fuzzerstate_elf_expectedvals(*descriptor, check_pc_spike_again=True)
-runtest_simulator(fuzzerstate, rtl_elfpath, finalregvals_spikeresol)
+# ====
+
+# from cascade.fuzzfromdescriptor import gen_fuzzerstate_elf_expectedvals, runtest_simulator
+#fuzzerstate, rtl_elfpath, finalregvals_spikeresol, *time_seconds_spent = \
+#        gen_fuzzerstate_elf_expectedvals(*descriptor, check_pc_spike_again=True)
+#runtest_simulator(fuzzerstate, rtl_elfpath, finalregvals_spikeresol)
+# ====
+
+import random
+from cascade.fuzzerstate import FuzzerState
+random.seed(descriptor.randseed)
+fuzzerstate = FuzzerState(
+        0x80000000,
+        descriptor.design_name,
+        descriptor.memsize,
+        descriptor.randseed,
+        descriptor.nmax_bbs,
+        descriptor.authorize_privileges,
+        nmax_instructions=None,
+        nodependencybias=False)
+
+from cascade.basicblock import gen_basicblocks
+gen_basicblocks(fuzzerstate)
+
+from cascade.spikeresolution import spike_resolution
+expected_intregvals, expected_floatregvals = spike_resolution(fuzzerstate, check_pc_spike_again=True)
+assert len(expected_intregvals) >= fuzzerstate.num_pickable_regs-1
+assert fuzzerstate.design_has_fpu is True
+assert len(expected_floatregvals) == fuzzerstate.num_pickable_floating_regs
+
+from cascade.genelf import gen_elf_from_bbs
+rtl_elfpath = gen_elf_from_bbs(
+        fuzzerstate,
+        is_spike_resolution=False,
+        prefixname='rtl',
+        test_identifier=fuzzerstate.instance_to_str(),
+        start_addr=fuzzerstate.design_base_addr,
+        )
+
+from cascade.fuzzsim import runsim_verilator
+num_instrs = sum(map(len, fuzzerstate.instr_objs_seq))
+MAX_CYCLES_PER_INSTR = 30
+SETUP_CYCLES = 1000
+is_stop_successful, received_regvals = runsim_verilator(
+            fuzzerstate.design_name,
+            num_instrs*MAX_CYCLES_PER_INSTR + SETUP_CYCLES,
+            rtl_elfpath,
+            fuzzerstate.num_pickable_regs-1,
+            fuzzerstate.num_pickable_floating_regs)
+
 print('\033[33m'+'='*30+'\033[m')
 print(f'{descriptor=}')
-print(f'{time_seconds_spent=}')
 print('\033[33m'+'='*30+'\033[m')
+assert is_stop_successful is True
+assert (L := tuple(map(len, received_regvals))) == (23, 9), L
