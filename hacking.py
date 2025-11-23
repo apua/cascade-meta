@@ -38,14 +38,33 @@ os.environ['CASCADE_DESIGN_PROCESSING_ROOT'] = str(Path(__file__, '../design-pro
 design_name = 'boom'
 descriptor = (881540, design_name, 5000017, 51, True)
 
-print('[INFO] (a) calibrating the spike speed to estimate an expected upper bound of valid executions')
+print('\033[33m[INFO] (a) calibrating the spike speed to estimate an expected upper bound of valid executions\033[m')
 from common.spike import calibrate_spikespeed
 calibrate_spikespeed()
 
-print('[INFO] (b) finding which delegation bits are supported by the design')
+print('\033[33m[INFO] (b) finding which delegation bits are supported by the design\033[m')
 from common.profiledesign import profile_get_medeleg_mask
 profile_get_medeleg_mask(design_name)
 
-print('[INFO] emulation?')
-from cascade.fuzzfromdescriptor import fuzz_single_from_descriptor
-fuzz_single_from_descriptor(*descriptor, check_pc_spike_again=True)
+print('\033[33m[INFO] emulation\033[m')
+print('\033[33m' + '='*60 + '\033[m')
+from cascade.fuzzfromdescriptor import (
+    #fuzz_single_from_descriptor,
+    #run_rtl,
+    gen_fuzzerstate_elf_expectedvals,
+    runtest_simulator,
+    )
+#fuzz_single_from_descriptor(*descriptor, check_pc_spike_again=True)
+
+from collections import namedtuple
+Descriptor = namedtuple('Descriptor', 'memsize design_name randseed nmax_bbs authorize_privileges')
+descriptor = Descriptor(881540, 'boom', 5000017, 51, True)
+#fuzz_single_from_descriptor(descriptor, check_pc_spike_again=True)
+#gathered_times = run_rtl(descriptor, check_pc_spike_again=True)
+fuzzerstate, rtl_elfpath, finalregvals_spikeresol, *time_seconds_spent = \
+        gen_fuzzerstate_elf_expectedvals(*descriptor, check_pc_spike_again=True)
+runtest_simulator(fuzzerstate, rtl_elfpath, finalregvals_spikeresol)
+print('\033[33m'+'='*30+'\033[m')
+print(f'{descriptor=}')
+print(f'{time_seconds_spent=}')
+print('\033[33m'+'='*30+'\033[m')

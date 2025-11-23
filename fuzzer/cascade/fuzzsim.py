@@ -27,13 +27,64 @@ SETUP_CYCLES = 1000 # Without this, we had issues with BOOM with very short prog
 
 # @param get_rfuzz_coverage_mask if True, then return a pair (is_stop_successful: bool, rfuzz_coverage_mask: int)
 # Return a pair (is_stop_successful: bool, reg_vals: int list of length <= MAX_NUM_PICKABLE_REGS-1 or None if is_stop_successful is False)
-def runsim_verilator(design_name, simlen, elfpath, num_int_regs: int = MAX_NUM_PICKABLE_REGS-1, num_float_regs: int = MAX_NUM_PICKABLE_FLOATING_REGS, coveragepath = None, get_rfuzz_coverage_mask = False):
-    if DO_ASSERT:
-        assert coveragepath is None or not get_rfuzz_coverage_mask
+def runsim_verilator(
+        design_name,
+        simlen,
+        elfpath,
+        num_int_regs: int = MAX_NUM_PICKABLE_REGS-1,
+        num_float_regs: int = MAX_NUM_PICKABLE_FLOATING_REGS,
+        ):
+    coveragepath = None
+    get_rfuzz_coverage_mask = False
+    assert coveragepath is None or not get_rfuzz_coverage_mask
+
+    import subprocess as sp; sp.run('ls -l cascade-data', shell=1)  # when was ELF being renamed to "rtl-*"?
+
+    #print('\033[31m', end='')
+    #print(f'{design_name=}')
+    #print(f'{simlen=}')
+    #print(f'{elfpath=}')
+    #print(f'{num_int_regs=}')
+    #print(f'{num_float_regs=}')
+    #print('\033[m', end='')
+    #
+    # design_name='boom'
+    # simlen=1330
+    # elfpath='cascade-data/medelegprofilingboom.elf'
+    # num_int_regs=1
+    # num_float_regs=0
+    #
+    # design_name='boom'
+    # simlen=23170
+    # elfpath='cascade-data/rtl881540_boom_5000017_51.elf'
+    # num_int_regs=23
+    # num_float_regs=9
 
     design_cfg       = designcfgs.get_design_cfg(design_name)
     cascadedir       = designcfgs.get_design_cascade_path(design_name)
     builddir         = os.path.join(cascadedir,'build')
+    print(f'{design_cfg=}')
+    print(f'{cascadedir=}')
+    print(f'{builddir=}')
+    # design_cfg={
+    #   'misaligned_data_supported': False,
+    #   'privlvs': 'msu',
+    #   'mmu': 'sv39,sv48',
+    #   'marchflags': '-march=rv64gc -mabi=lp64',
+    #   'bootaddr': '0x80000000',
+    #   'stopsigaddr': '0x60000000',
+    #   'trapsigaddr': '0x60000008',
+    #   'regdumpaddr': '0x60000010',
+    #   'fpregdumpaddr': '0x60000018',
+    #   'bootrom_elf': 'bootrom/bootrom.rv64.elf',
+    #   'lead_cycles': 0,
+    #   'toplevel': 'top_tiny_soc',
+    #   'trace_top': 'top_tiny_soc.i_mem_top',
+    #   'verilatorprefix': 'boom',
+    #   'memorywordsize': 64,
+    #   }
+    # cascadedir='/private/tmp/cascade-meta/design-processing/../cascade-designs/cascade-chipyard/cascade-boom'
+    # builddir='/private/tmp/cascade-meta/design-processing/../cascade-designs/cascade-chipyard/cascade-boom/build'
 
     my_env = setup_sim_env(elfpath, '/dev/null', '/dev/null', simlen, cascadedir, coveragepath, False)
 
@@ -41,20 +92,23 @@ def runsim_verilator(design_name, simlen, elfpath, num_int_regs: int = MAX_NUM_P
     verilatordir         = 'default-verilator'
     verilator_executable = 'V%s' % design_cfg['toplevel']
     sim_executable_path  = os.path.abspath(os.path.join(builddir, simdir, verilatordir, verilator_executable))
+    #print(f'{sim_executable_path=}')
+    # sim_executable_path='/private/tmp/cascade-meta/cascade-designs/cascade-chipyard/cascade-boom/build/run_vanilla_notrace_0.1/default-verilator/Vtop_tiny_soc'
 
     # Run Verilator
     #exec_out = subprocess.run([sim_executable_path], check=True, text=True, capture_output=True, env=my_env)
+    #outlines = list(filter(lambda l: 'Writing ELF word to' not in l, exec_out.stdout.split('\n')))
     print('DEBUG: sim_executable_path `%s`' % sim_executable_path)
-    import subprocess as sp; sp.run('ls -l cascade-data', shell=1)
     import traceback; traceback.print_stack()
     exec_out = lambda:0
     exec_out.stdout = open('verilator.out').read()
-    outlines = list(filter(lambda l: 'Writing ELF word to' not in l, exec_out.stdout.split('\n')))
+    outlines = [line for line in exec_out.stdout.splitlines() if not line.startswith('Writing ELF word to')]
 
     # Check stop success
-    is_stop_successful = 'Found a stop request.' in exec_out.stdout
+    #is_stop_successful = 'Found a stop request.' in exec_out.stdout
+    is_stop_successful = any(line.startswith('Found a stop request.') for line in outlines)
     if not is_stop_successful:
-        return False, None
+        return False, None  # is_stop_successful, received_regvals
 
     # Retrieve the register values
     ret_intregs = []
@@ -62,13 +116,17 @@ def runsim_verilator(design_name, simlen, elfpath, num_int_regs: int = MAX_NUM_P
     curr_index = 0
     for reg_id in range(1, num_int_regs+1):
         for row_id in itertools.count(curr_index):
+            #print(f'{reg_id=} {row_id=}')
             if len(outlines[row_id]) >= 19 and outlines[row_id][:19] == f"Dump of reg x{reg_id:02}: 0x":
                 ret_intregs.append(int(outlines[row_id][19:35], 16))
                 curr_index = row_id + 1
                 break
+    #print(f'{list(map(hex, ret_intregs))=}')  # x01 ~ x23
+
     if designcfgs.design_has_float_support(design_name):
         for fp_reg_id in range(num_float_regs):
             for row_id in itertools.count(curr_index):
+                #print(f'{fp_reg_id=} {row_id=}')
                 if row_id >= len(outlines):
                     # This happens if the FPU is disabled in the final block and the final permission level does not permit enabling it.
                     ret_floatregs.append(None)
@@ -78,6 +136,8 @@ def runsim_verilator(design_name, simlen, elfpath, num_int_regs: int = MAX_NUM_P
                     ret_floatregs.append(int(outlines[row_id][19:35], 16))
                     curr_index = row_id + 1
                     break
+    #print(f'{list(map(hex, ret_floatregs))=}')  # f00 ~ f08, drop f09 ~ f13
+
     if get_rfuzz_coverage_mask:
         for row_id in range(curr_index, len(outlines)):
             # print('outlines[row_id]', outlines[row_id])
@@ -295,3 +355,25 @@ def runtest_modelsim_forcoverage(fuzzerstate, elfpath: str, coveragepath: str):
     # Check successful stop
     if not is_stop_successful:
         raise Exception(f"Timeout during modelsim testing of design `{fuzzerstate.design_name}` for tuple ({fuzzerstate.memsize}, {fuzzerstate.design_name}, {fuzzerstate.randseed}, {fuzzerstate.nmax_bbs}, {fuzzerstate.authorize_privileges}).")
+
+
+####################
+
+
+def runtest_simulator(fuzzerstate, elfpath: str, expected_regvals: tuple):
+    expected_intregvals, expected_floatregvals = expected_regvals
+
+    assert len(expected_intregvals) >= fuzzerstate.num_pickable_regs-1
+    assert fuzzerstate.design_has_fpu is True
+    assert len(expected_floatregvals) == fuzzerstate.num_pickable_floating_regs
+
+    num_instrs = sum(map(len, fuzzerstate.instr_objs_seq))
+    print(f'{num_instrs=} {MAX_CYCLES_PER_INSTR=} {SETUP_CYCLES=}')
+
+    is_stop_successful, received_regvals = runsim_verilator(
+                fuzzerstate.design_name,
+                num_instrs*MAX_CYCLES_PER_INSTR + SETUP_CYCLES,
+                elfpath,
+                fuzzerstate.num_pickable_regs-1,
+                fuzzerstate.num_pickable_floating_regs)
+    return is_stop_successful, received_regvals

@@ -98,3 +98,31 @@ def fuzz_single_from_descriptor(memsize: int, design_name: str, randseed: int, n
         else:
             print(f"Failed test_run_rtl_single for params memsize: `{memsize}`, design_name: `{design_name}`, check_pc_spike_again: `{check_pc_spike_again}`, randseed: `{randseed}`, nmax_bbs: `{nmax_bbs}`, authorize_privileges: `{authorize_privileges}` -- ({memsize}, {design_name}, {randseed}, {nmax_bbs}, {authorize_privileges})\n{e}")
         return 0, 0, 0, 0
+
+
+####################
+
+
+#def run_rtl(descriptor, check_pc_spike_again):
+#    memsize, design_name, randseed, nmax_bbs, authorize_privileges = descriptor
+#
+#    print('[INFO] Run RTL')
+#    fuzzerstate, rtl_elfpath, finalregvals_spikeresol, *time_seconds_spent = gen_fuzzerstate_elf_expectedvals(
+#        memsize, design_name, randseed, nmax_bbs, authorize_privileges,
+#        check_pc_spike_again,
+#        )
+#
+#    print(f'{finalregvals_spikeresol=}')
+#    print(f'{time_seconds_spent=}')
+#    runtest_simulator(
+#            fuzzerstate,
+#            rtl_elfpath,
+#            finalregvals_spikeresol,
+#            )
+
+
+#def fuzz_single_from_descriptor(descriptor, check_pc_spike_again):
+#    gathered_times = run_rtl(descriptor, check_pc_spike_again)
+#    print(f'{check_pc_spike_again=}')
+#    print(f'{descriptor=}')
+#    print('\033[33m'+'='*30+'\033[m')
