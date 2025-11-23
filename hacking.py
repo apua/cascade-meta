@@ -38,9 +38,9 @@ os.environ['CASCADE_DESIGN_PROCESSING_ROOT'] = str(Path(__file__, '../design-pro
 design_name = 'boom'
 descriptor = (881540, design_name, 5000017, 51, True)
 
-print('\033[33m[INFO] (a) calibrating the spike speed to estimate an expected upper bound of valid executions\033[m')
-from common.spike import calibrate_spikespeed
-calibrate_spikespeed()
+#print('\033[33m[INFO] (a) calibrating the spike speed to estimate an expected upper bound of valid executions\033[m')
+#from common.spike import calibrate_spikespeed
+#calibrate_spikespeed()
 
 print('\033[33m[INFO] (b) finding which delegation bits are supported by the design\033[m')
 from common.profiledesign import profile_get_medeleg_mask

@@ -203,10 +203,11 @@ def run_trace_all_pcs(identifier_str: str, elfpath: str, rvflags: str, numinstrs
         elfpath
     )
 
-    try:
-        spike_out = subprocess.run(spike_shell_command, capture_output=True, timeout=get_spike_timeout_seconds()).stderr
-    except Exception as e:
-        raise Exception(f"Spike timeout (B) for identifier str: {identifier_str}.\nCommand: {' '.join(spike_shell_command)}")
+    spike_out = subprocess.run(spike_shell_command, capture_output=True).stderr
+    #try:
+    #    spike_out = subprocess.run(spike_shell_command, capture_output=True, timeout=get_spike_timeout_seconds()).stderr
+    #except Exception as e:
+    #    raise Exception(f"Spike timeout (B) for identifier str: {identifier_str}.\nCommand: {' '.join(spike_shell_command)}")
 
     if not NO_REMOVE_TMPFILES:
         os.remove(path_to_debug_file)
@@ -255,7 +256,9 @@ __spike_ns_per_instr = None
 #def get_spike_timeout_seconds() -> int:
 #    return max((SPIKE_TIMEOUT_SLACK_FACTOR*_get_spike_ns_per_instr())/1e9, 10)
 def get_spike_timeout_seconds():
+    print('\033[32m')
     import traceback; traceback.print_stack()
+    print('\033[m')
     return 10
 
 
