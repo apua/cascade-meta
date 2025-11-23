@@ -42,9 +42,9 @@ descriptor = (881540, design_name, 5000017, 51, True)
 #from common.spike import calibrate_spikespeed
 #calibrate_spikespeed()
 
-print('\033[33m[INFO] (b) finding which delegation bits are supported by the design\033[m')
-from common.profiledesign import profile_get_medeleg_mask
-profile_get_medeleg_mask(design_name)
+#print('\033[33m[INFO] (b) finding which delegation bits are supported by the design\033[m')
+#from common.profiledesign import profile_get_medeleg_mask
+#profile_get_medeleg_mask(design_name)
 
 print('\033[33m[INFO] emulation\033[m')
 print('\033[33m' + '='*60 + '\033[m')

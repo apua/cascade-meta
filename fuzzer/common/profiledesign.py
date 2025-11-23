@@ -33,13 +33,23 @@ def __gen_medeleg_profiling_snippet(design_name: str):
         regdump_addr = get_design_reg_dump_addr(design_name)
     except:
         raise ValueError(f"Design `{design_name}` does not have the `regdumpaddr` attribute.")
+    #print(f'{hex(stopsig_addr)=} {hex(regdump_addr)=}')
+    # hex(stopsig_addr)='0x60000000' hex(regdump_addr)='0x60000010'
 
     if DO_ASSERT:
         assert regdump_addr < 0x80000000, f"For the destination address `{hex(regdump_addr)}`, we will need to manage sign extension, which is not yet implemented here."
         assert stopsig_addr < 0x80000000, f"For the destination address `{hex(stopsig_addr)}`, we will need to manage sign extension, which is not yet implemented here."
 
     # We use the fuzzerstate for convenience but use very few of its features for this function's purposes. In particular, we do not bother about memviews.
-    fuzzerstate = FuzzerState(get_design_boot_addr(design_name), design_name, 1 << 16, 0, 1, True)
+    #print(f'{hex(get_design_boot_addr(design_name))=}')
+    # hex(get_design_boot_addr(design_name))='0x80000000'
+    fuzzerstate = FuzzerState(
+            get_design_boot_addr(design_name),
+            design_name,
+            memsize=1 << 16,
+            randseed=0,
+            nmax_bbs=1,
+            authorize_privileges=True)
 
     fuzzerstate.reset()
     fuzzerstate.init_new_bb() # Update fuzzer state to support a new basic block
@@ -70,13 +80,22 @@ def __gen_medeleg_profiling_snippet(design_name: str):
     fuzzerstate.add_instruction(IntStoreInstruction("sd" if is_design_64bit else "sw", RDEP_MASK_REGISTER_ID, 1, 0, -1, is_design_64bit))
     fuzzerstate.add_instruction(SpecialInstruction("fence"))
 
+    #print('\033[32m')
+    #for i in fuzzerstate.instr_objs_seq[-1]:
+    #    print(i.instr_str, '\t', i.gen_bytecode_int(False).to_bytes(4, 'little'))
+    #print('\033[m')
     return fuzzerstate
 
 
 def __get_medeleg_mask(design_name: str):
     # The fuzzerstate contains the snippet that dumps a register value of 1 if an exception occurred, else a value of 0
     fuzzerstate = __gen_medeleg_profiling_snippet(design_name)
-    rtl_elfpath = gen_elf_from_bbs(fuzzerstate, False, 'medelegprofiling', design_name, fuzzerstate.design_base_addr)
+    rtl_elfpath = gen_elf_from_bbs(
+            fuzzerstate,
+            is_spike_resolution=False,
+            prefixname='medelegprofiling',
+            test_identifier=design_name,
+            start_addr=fuzzerstate.design_base_addr)
     return runtest_verilator_forprofiling(fuzzerstate, rtl_elfpath, 1)
 
 ###
@@ -90,9 +109,11 @@ def profile_get_medeleg_mask(design_name: str):
         return 0 # This design does not support medeleg
     global PROFILED_MEDELEG_MASK
     PROFILED_MEDELEG_MASK = __get_medeleg_mask(design_name)
+    print(f'\033[32m{hex(PROFILED_MEDELEG_MASK)=}\033[m')
 
 # @return the mask of medeleg bits that are supported by the design
 def get_medeleg_mask(design_name: str):
+    return 0xffff4f13020f1f13  # x01
     if PROFILED_MEDELEG_MASK is None:
         raise Exception("Error: get_medeleg_mask was called before profiling.")
     return PROFILED_MEDELEG_MASK

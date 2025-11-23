@@ -190,6 +190,7 @@ class RegImmInstruction(ImmInstruction):
     authorized_instr_strs = RegImmInstructions
 
     def __init__(self, instr_str: str, rd: int, rs1: int, imm: int, is_design_64bit: bool, iscompressed: bool = False, is_rd_nonpickable_ok: bool = False):
+        #print(f'{instr_str=} {imm=}')
         super().__init__(instr_str, imm, is_design_64bit, iscompressed)
         if DO_ASSERT:
             assert rs1 >= 0
@@ -204,6 +205,8 @@ class RegImmInstruction(ImmInstruction):
     def gen_bytecode_int(self, is_spike_resolution: bool):
         # rv32i
         if self.instr_str == "addi":
+            #print((self.rd, self.rs1, self.imm))
+            #print(rv32i_addi(self.rd, self.rs1, self.imm))
             return rv32i_addi(self.rd, self.rs1, self.imm)
         elif self.instr_str == "slti":
             return rv32i_slti(self.rd, self.rs1, self.imm)
