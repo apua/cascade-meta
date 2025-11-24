@@ -39,6 +39,8 @@ class FuzzerState(FuzzerStateBase):
     design_has_pmp = True
 
     def __init__(self, *a, **kw):
+        assert (L := len(dir(self))) == 59
+
         random.seed(self.randseed)
 
         properties = [
@@ -49,6 +51,7 @@ class FuzzerState(FuzzerStateBase):
         assert all(not hasattr(self, p) for p in properties)
         self.gen_pick_weights()
         assert all(hasattr(self, p) for p in properties)
+        assert (L := len(dir(self))) == 67, 'added 8 properties: %s' % L
 
         properties = [
             'initial_block_data_end',
@@ -100,6 +103,7 @@ class FuzzerState(FuzzerStateBase):
         assert all(not hasattr(self, p) for p in properties)
         self.reset()
         assert all(hasattr(self, p) for p in properties)
+        assert (L := len(dir(self))) == 99, 'added 32 properties: %s' % L
 
         properties = ['is_fpu_activated', 'proba_turn_on_off_fpu_again']
         assert all(not hasattr(self, p) for p in properties)
@@ -107,18 +111,23 @@ class FuzzerState(FuzzerStateBase):
         self.is_fpu_activated = True  # mutated
         self.proba_turn_on_off_fpu_again = random.random() * 0.1
         assert all(hasattr(self, p) for p in properties)
+        assert (L := len(dir(self))) == 101, 'added 2 properties: %s' % L
 
 print('\033[33m[INFO] fuzzerstate\033[m')
 fuzzerstate = FuzzerState()
+assert (L := len(dir(fuzzerstate))) == 101
+
 print('\033[33m[INFO] gen_basicblocks\033[m')
 gen_basicblocks(fuzzerstate)
+assert (L := len(dir(fuzzerstate))) == 105, 'added 4 properties: %s' % L
 
 print('\033[33m[INFO] spike_resolution\033[m')
 from cascade.spikeresolution import spike_resolution
 expected_intregvals, expected_floatregvals = spike_resolution(fuzzerstate, check_pc_spike_again=True)
+assert (L := len(dir(fuzzerstate))) == 105, 'not added properties: %s' % L
 assert len(expected_intregvals) >= fuzzerstate.num_pickable_regs-1
 assert fuzzerstate.design_has_fpu is True
-assert len(expected_floatregvals) == fuzzerstate.num_pickable_floating_regs
+assert (L := len(expected_floatregvals)) == fuzzerstate.num_pickable_floating_regs
 
 print('\033[33m[INFO] gen_elf_from_bbs\033[m')
 from cascade.genelf import gen_elf_from_bbs
