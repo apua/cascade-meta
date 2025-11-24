@@ -3,8 +3,32 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 from params.runparams import DO_ASSERT
-from params.fuzzparams import RELOCATOR_REGISTER_ID, RDEP_MASK_REGISTER_ID, FPU_ENDIS_REGISTER_ID, MIN_NUM_PICKABLE_REGS, MAX_NUM_PICKABLE_REGS, MIN_NUM_PICKABLE_FLOATING_REGS, MAX_NUM_PICKABLE_FLOATING_REGS, MPP_BOTH_ENDIS_REGISTER_ID, MPP_TOP_ENDIS_REGISTER_ID, SPP_ENDIS_REGISTER_ID, MAX_NUM_STORE_LOCATIONS
-from common.designcfgs import is_design_32bit, design_has_float_support, design_has_double_support, design_has_muldiv_support, design_has_atop_support, design_has_misaligned_data_support, get_design_boot_addr, design_has_supervisor_mode, design_has_user_mode, design_has_compressed_support, design_has_pmp
+from params.fuzzparams import (
+        RELOCATOR_REGISTER_ID,
+        RDEP_MASK_REGISTER_ID,
+        FPU_ENDIS_REGISTER_ID,
+        MIN_NUM_PICKABLE_REGS,
+        MAX_NUM_PICKABLE_REGS,
+        MIN_NUM_PICKABLE_FLOATING_REGS,
+        MAX_NUM_PICKABLE_FLOATING_REGS,
+        MPP_BOTH_ENDIS_REGISTER_ID,
+        MPP_TOP_ENDIS_REGISTER_ID,
+        SPP_ENDIS_REGISTER_ID,
+        MAX_NUM_STORE_LOCATIONS,
+        )
+from common.designcfgs import (
+        is_design_32bit,
+        design_has_float_support,
+        design_has_double_support,
+        design_has_muldiv_support,
+        design_has_atop_support,
+        design_has_misaligned_data_support,
+        get_design_boot_addr,
+        design_has_supervisor_mode,
+        design_has_user_mode,
+        design_has_compressed_support,
+        design_has_pmp,
+        )
 from common.spike import SPIKE_STARTADDR
 
 from cascade.util import ISAInstrClass, ExceptionCauseVal
@@ -32,6 +56,7 @@ class FuzzerState:
         self.design_name = design_name
         self.design_base_addr = design_base_addr
         self.is_design_64bit = not is_design_32bit(design_name)
+
         self.design_has_compressed_support     : bool = design_has_compressed_support(design_name)
         self.design_has_fpu                    : bool = design_has_float_support(design_name)
         self.design_has_fpud                   : bool = design_has_double_support(design_name)
@@ -217,7 +242,7 @@ class FuzzerState:
     def init_design_state(self):
         if self.design_has_fpu:
             self.is_fpu_activated = True
-            self.proba_turn_on_off_fpu_again = random.random()*0.1 # Proba that we re-turn the FPU into the mode it is already in (on or off)
+            self.__class__.proba_turn_on_off_fpu_again = random.random()*0.1 # Proba that we re-turn the FPU into the mode it is already in (on or off)
 
     # @brief return a string identifier of the current program
     def instance_to_str(self):

@@ -31,7 +31,7 @@ import random
 def gen_basicblocks(fuzzerstate):
     # Until the generation succeeds
     while True:
-
+        print('==========>')
         fuzzerstate.reset()
         gen_initial_basic_block(fuzzerstate, SPIKE_STARTADDR)
         fuzzerstate.save_reg_state()
@@ -51,16 +51,19 @@ def gen_basicblocks(fuzzerstate):
         # it because we do not know yet what it will look like until we have a concrete 
         # context to restore. Until then, we just know arbitrary bounds.
         if not alloc_context_saver_bb(fuzzerstate):
+            print('==========>', 'continue')
             continue
 
         # Finally, generate the store locations. This can be swapped with generating the final basic block.
         fuzzerstate.memstorestate.init_store_locations(fuzzerstate.num_store_locations, fuzzerstate.memview)
 
         while True:
+            print('==========>', 'nested while')
             bb_gen_success = gen_basicblock(fuzzerstate)
             # This corresponds to failing to find space for a new basic block. 
             # In this case, this block may also not have completed, and we drop it.
             if bb_gen_success == False:
+                print('==========>', 'nested while break 1')
                 break
             # Save the register states
             fuzzerstate.save_reg_state()
@@ -68,18 +71,22 @@ def gen_basicblocks(fuzzerstate):
             if fuzzerstate.nmax_bbs is not None and len(fuzzerstate.instr_objs_seq) >= fuzzerstate.nmax_bbs \
                   or fuzzerstate.memview.get_allocated_ratio() >= LIMIT_MEM_SATURATION_RATIO \
                   or fuzzerstate.has_reached_max_instr_num():
+                print('==========>', 'nested while break 2')
                 break
             fuzzerstate.memview.alloc_mem_range(fuzzerstate.next_bb_addr, BASIC_BLOCK_MIN_SPACE)
             # print('Mem occupation:', fuzzerstate.memview.get_allocated_ratio(), end='\r')
+            print('==========>', 'nested while bottom')
 
         # Find a suitable last bb and connect it with the final block
         pop_success = pop_last_bbs_to_connect_with_final_block(fuzzerstate)
         if pop_success:
+            print('==========>', 'break')
             break
         # Staying in the external loop is typically extremely rare. Staying corresponds 
         # to not being able to jump to the final bb despite popping any number of bbs. 
         # This may happen mostly with large memories and with a very high prevalence 
         # of direct control flow instructions (JAL or branches)
+        print('==========>', 'bottom')
 
     # Generate the content of the final basic block, now that we know the final privilege level.
     fuzzerstate.final_bb = finalblock(fuzzerstate, fuzzerstate.design_name)
@@ -106,6 +113,7 @@ def gen_basicblocks(fuzzerstate):
     #             print('Plan taken:', bb_instr.plan_taken)
     # print('Start addr:', hex(fuzzerstate.bb_start_addr_seq[147]))
 
+    print('\033[36m[TRACE]\033[m end of change fuzzerstate')
     return fuzzerstate
 
 # The first BASIC_BLOCK_MIN_SPACE must be pre-allocated. The rationale is that we 
