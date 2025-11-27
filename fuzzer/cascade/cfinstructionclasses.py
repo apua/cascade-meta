@@ -44,6 +44,8 @@ class CFInstruction:
         assert not iscompressed, "Compressed instructions are not yet supported."
         self.assert_authorized_instr_strs()
 
+    def __repr__(self): return f'{self.__class__.__name__}({self.instr_str})'
+
     # @param is_spike_resolution: some rare instructions (typically offset management placeholders) are treated differently between spike resolution and the subsequent actual simulation.
     def gen_bytecode_int(self, is_spike_resolution: bool):
         raise ValueError('Cannot generate bytecode in the abstract instruction classes.')

@@ -218,6 +218,7 @@ class FuzzerState:
         if self.nodependencybias:
             self.num_pickable_regs = MAX_NUM_PICKABLE_REGS
         else:
+            #print((MIN_NUM_PICKABLE_REGS, MAX_NUM_PICKABLE_REGS))
             self.num_pickable_regs = random.randint(MIN_NUM_PICKABLE_REGS, MAX_NUM_PICKABLE_REGS)
         if DO_ASSERT:
             assert self.num_pickable_regs < RELOCATOR_REGISTER_ID, f"Required self.num_pickable_regs ({self.num_pickable_regs}) < RELOCATOR_REGISTER_ID ({RELOCATOR_REGISTER_ID})"
@@ -228,6 +229,7 @@ class FuzzerState:
             assert self.num_pickable_regs < SPP_ENDIS_REGISTER_ID, f"Required self.num_pickable_regs ({self.num_pickable_regs}) < SPP_ENDIS_REGISTER_ID ({SPP_ENDIS_REGISTER_ID})"
         if self.design_has_fpu:
             # We impose self.num_pickable_floating_regs <= self.num_pickable_regs just because initialblock is easier to write. It also has no impact on the fuzzing quality overall.
+            #print(MIN_NUM_PICKABLE_FLOATING_REGS, MAX_NUM_PICKABLE_FLOATING_REGS, self.num_pickable_regs)
             self.num_pickable_floating_regs = random.randint(MIN_NUM_PICKABLE_FLOATING_REGS, min(MAX_NUM_PICKABLE_FLOATING_REGS, self.num_pickable_regs))
         else:
             self.num_pickable_floating_regs = 0 # Just for compatibility. This variable is not used if self.design_has_fpu is False.

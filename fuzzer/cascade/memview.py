@@ -59,27 +59,35 @@ class MemoryView:
     # @param alloc_size:    size of the memory region to allocate, excluding the last adress
     def alloc_mem_range(self, start: int, alloc_size: int):
         end = start + alloc_size
+        print(f'{start=} {alloc_size=} {end=}')
         if DO_ASSERT:
             assert end > start, f"Expected start ({start}) > end ({end}) in alloc_mem_range."
         self.occupied_addrs += end-start
+        #print('====> alloc_mem_range', len(self.freepairs))
         for curr_pair_id, curr_pair in enumerate(self.freepairs):
+            #print(f'{start=} {end=} {curr_pair=}')
             if start < curr_pair[1]:
                 # Check that the range is initially free.
                 if DO_ASSERT:
                     assert start >= curr_pair[0] and end <= curr_pair[1], "The memory range to allocate is not free."
                 # Remove the tuple and replace it with at most two smaller tuples. This will automatically coalesce.
                 if start == curr_pair[0] and end == curr_pair[1]:
+                    #print(f'{curr_pair_id=} 1')
                     self.freepairs = self.freepairs[:curr_pair_id] + self.freepairs[curr_pair_id+1:]
                     break
                 elif start == curr_pair[0]:
+                    #print(f'{curr_pair_id=} 2')
                     self.freepairs = self.freepairs[:curr_pair_id] + [(end, curr_pair[1])] + self.freepairs[curr_pair_id+1:]
                     break
                 elif end == curr_pair[1]:
+                    #print(f'{curr_pair_id=} 3')
                     self.freepairs = self.freepairs[:curr_pair_id] + [(curr_pair[0], start)] + self.freepairs[curr_pair_id+1:]
                     break
                 else:
+                    #print(f'{curr_pair_id=} 4')
                     self.freepairs = self.freepairs[:curr_pair_id] + [(curr_pair[0], start)] + [(end, curr_pair[1])] + self.freepairs[curr_pair_id+1:]
                     break
+            #else: print(f'{curr_pair_id=} 5')
         else:
             raise ValueError("Trying to allocate a memory range that was already not free.")
         # print(self.to_string())
@@ -119,6 +127,7 @@ class MemoryView:
     def gen_random_free_addr(self, alignment_bits: int, min_space: int, left_bound: int, right_bound: int, max_attempts: int = MEMVIEW_ALLOC_MAX_ATTEMPTS):
         left_bound  = max(left_bound, 0)
         right_bound = min(right_bound, self.memsize)
+        print(f'{left_bound=} {right_bound=}')
         if DO_ASSERT:
             assert max_attempts > 0
             assert min_space >= 0
@@ -128,13 +137,17 @@ class MemoryView:
             # The bounds must be sufficiently spaced. In our use case, this is not at all a problem.
             assert ((left_bound+(1 << alignment_bits)-1) >> alignment_bits) < ((right_bound-min_space) >> alignment_bits)
 
-        for _ in range(max_attempts):
-            picked_addr = random.randrange((left_bound+(1 << alignment_bits)-1) >> alignment_bits, ((right_bound-min_space) >> alignment_bits)) << alignment_bits
+        for attempts in range(max_attempts):
+            picked_addr = random.randrange(
+                (left_bound+(1 << alignment_bits)-1) >> alignment_bits,
+                ((right_bound-min_space) >> alignment_bits),
+                ) << alignment_bits
             if min_space == 0 or self.is_mem_range_free(picked_addr, picked_addr+min_space): # is_mem_range_free returns False if it goes beyond the memory boundaries.
                 if DO_ASSERT:
                     assert picked_addr >= 0
                     assert picked_addr + min_space <= self.memsize
                     assert picked_addr % (1 << alignment_bits) == 0
+                print(f'\033[31m{attempts=}\033[m')
                 return picked_addr
         return None
 
