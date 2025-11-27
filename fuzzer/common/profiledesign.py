@@ -6,15 +6,15 @@
 # - Supported medeleg bits
 # - WLRL behavior for writes to mcause (we assume that the behavior is the same for scause)
 
-from params.runparams import DO_ASSERT
-from rv.csrids import CSR_IDS
-from rv.asmutil import li_into_reg
-from common.designcfgs import get_design_boot_addr, is_design_32bit, get_design_stop_sig_addr, get_design_reg_dump_addr, design_has_supervisor_mode
-from params.fuzzparams import RDEP_MASK_REGISTER_ID
-from cascade.cfinstructionclasses import ImmRdInstruction, RegImmInstruction, IntStoreInstruction, CSRImmInstruction, CSRRegInstruction, SpecialInstruction
-from cascade.fuzzerstate import FuzzerState
-from cascade.genelf import gen_elf_from_bbs
-from cascade.fuzzsim import runtest_verilator_forprofiling
+#   from params.runparams import DO_ASSERT
+#   from rv.csrids import CSR_IDS
+#   from rv.asmutil import li_into_reg
+#   from common.designcfgs import get_design_boot_addr, is_design_32bit, get_design_stop_sig_addr, get_design_reg_dump_addr, design_has_supervisor_mode
+#   from params.fuzzparams import RDEP_MASK_REGISTER_ID
+#   from cascade.cfinstructionclasses import ImmRdInstruction, RegImmInstruction, IntStoreInstruction, CSRImmInstruction, CSRRegInstruction, SpecialInstruction
+#   from cascade.fuzzerstate import FuzzerState
+#   from cascade.genelf import gen_elf_from_bbs
+#   from cascade.fuzzsim import runtest_verilator_forprofiling
 
 ###
 # Internal functions
@@ -113,7 +113,14 @@ def profile_get_medeleg_mask(design_name: str):
 
 # @return the mask of medeleg bits that are supported by the design
 def get_medeleg_mask(design_name: str):
-    return 0xffff4f13020f1f13  # x01
     if PROFILED_MEDELEG_MASK is None:
         raise Exception("Error: get_medeleg_mask was called before profiling.")
     return PROFILED_MEDELEG_MASK
+
+
+####################
+
+
+def get_medeleg_mask(design_name: str):
+    assert design_name == 'boom'
+    return 0xffff4f13020f1f13  # x01
