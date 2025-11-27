@@ -6,7 +6,7 @@
 
 from params.fuzzparams import MAX_NUM_PICKABLE_REGS, MAX_NUM_PICKABLE_FLOATING_REGS
 from cascade.util import IntRegIndivState
-from common.sim.modelsim import get_next_worker_id
+#from common.sim.modelsim import get_next_worker_id  # unused and depend on `FileLock`
 from params.runparams import DO_ASSERT, PATH_TO_TMP
 from common.sim.commonsim import setup_sim_env
 from common import designcfgs
