@@ -292,4 +292,5 @@ def gen_initial_basic_block(fuzzerstate, offset_addr: int, csr_init_rounding_mod
     print(f'{fuzzerstate.initial_reg_data_addr=}')
     print(f'{hex(fuzzerstate.initial_block_data_start)=}')
     print(f'{hex(fuzzerstate.initial_block_data_end)=}')
+    print(f'\033[31m[INFO]\033[m {[tuple(map(hex, v)) for v in fuzzerstate.memview.freepairs]=}')
     return True

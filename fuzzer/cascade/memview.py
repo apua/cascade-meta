@@ -134,9 +134,13 @@ class MemoryView:
                     return start >= curr_pair[0] and end <= curr_pair[1]
             return False
 
+        import inspect; print(f'{inspect.getouterframes(inspect.currentframe())[1][3]=}')
+        #import traceback; traceback.print_stack()
+
         left_bound  = max(left_bound, 0)
         right_bound = min(right_bound, self.memsize)
-        #print(f'\033[36m[TRACE]\033[m {left_bound=} {right_bound=}')
+        print(f'\033[36m[TRACE]\033[m {[tuple(map(hex, v)) for v in self.freepairs]=}')
+        print(f'\033[36m[TRACE]\033[m {hex(left_bound)=} {hex(right_bound)=} {hex(min_space)=}')
         #print(alignment_bits, min_space, left_bound, right_bound, max_attempts)
         if DO_ASSERT:
             assert max_attempts > 0
@@ -167,6 +171,7 @@ class MemoryView:
                     assert picked_addr >= 0
                     assert picked_addr + min_space <= self.memsize
                     assert picked_addr % (1 << alignment_bits) == 0
+                print(f'\033[36m[TRACE]\033[m {hex(picked_addr)=} {picked_addr=}')
                 return picked_addr
         return None
 

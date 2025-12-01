@@ -39,11 +39,14 @@ def gen_basicblocks(fuzzerstate):
     assert fuzzerstate.get_num_fuzzing_instructions_sofar() == 0, "We should have generated only one basic block so far."
     assert fuzzerstate.has_reached_max_instr_num() == False, "We should not have reached the max number of instructions yet."
 
+    print(f'\033[31m[INFO]\033[m {[tuple(map(hex, v)) for v in fuzzerstate.memview.freepairs]=}')
     print('\033[33m[INFO]\033[m Reserve space for the second basic block (whose address is already fixed).')
     fuzzerstate.memview.alloc_mem_range(fuzzerstate.next_bb_addr, BASIC_BLOCK_MIN_SPACE)
+    print(f'\033[31m[INFO]\033[m {[tuple(map(hex, v)) for v in fuzzerstate.memview.freepairs]=}')
 
     print('\033[33m[INFO]\033[m Generate the random data block')
     gen_random_data_block(fuzzerstate)
+    print(f'\033[31m[INFO]\033[m {[tuple(map(hex, v)) for v in fuzzerstate.memview.freepairs]=}')
 
     # Reserve space for the final basic block.
     alloc_final_basic_block(fuzzerstate)
@@ -58,15 +61,22 @@ def gen_basicblocks(fuzzerstate):
     while True:
         print('==========>', 'nested while')
         bb_gen_success = gen_basicblock(fuzzerstate)
-        assert bb_gen_success is True
+        #assert bb_gen_success is True
+        if not bb_gen_success:
+            print('==========>', 'nested while break 1')
+            break
 
         # Save the register states
         fuzzerstate.save_reg_state()
 
         # Stop generating if no more bb can be produced
-        if fuzzerstate.nmax_bbs is not None and len(fuzzerstate.instr_objs_seq) >= fuzzerstate.nmax_bbs \
-              or fuzzerstate.memview.get_allocated_ratio() >= LIMIT_MEM_SATURATION_RATIO \
-              or fuzzerstate.has_reached_max_instr_num():
+        print(f'{len(fuzzerstate.instr_objs_seq)=} {fuzzerstate.nmax_bbs=}')
+        print(f'{fuzzerstate.memview.get_allocated_ratio()=} {LIMIT_MEM_SATURATION_RATIO=}')
+        print(f'{fuzzerstate.has_reached_max_instr_num()=}')
+        if fuzzerstate.nmax_bbs is not None \
+                and len(fuzzerstate.instr_objs_seq) >= fuzzerstate.nmax_bbs \
+                or fuzzerstate.memview.get_allocated_ratio() >= LIMIT_MEM_SATURATION_RATIO \
+                or fuzzerstate.has_reached_max_instr_num():
             print('==========>', 'nested while break 2')
             break
         fuzzerstate.memview.alloc_mem_range(fuzzerstate.next_bb_addr, BASIC_BLOCK_MIN_SPACE)
@@ -90,6 +100,7 @@ def gen_basicblocks(fuzzerstate):
 
     # Generate addresses for memory operations
     memop_addrs = gen_memop_addrs(fuzzerstate)
+    print(f'{[hex(a) for a in memop_addrs]=}')
 
     fuzzerstate.producer_id_to_tgtaddr, fuzzerstate.producer_id_to_noreloc_spike = gen_producer_id_to_tgtaddr(fuzzerstate, memop_addrs)
 
@@ -104,7 +115,7 @@ def gen_basicblocks(fuzzerstate):
     # print('Start addr:', hex(fuzzerstate.bb_start_addr_seq[147]))
 
     print('\033[36m[TRACE]\033[m end of change fuzzerstate')
-    return fuzzerstate
+    #return fuzzerstate
 
 # The first BASIC_BLOCK_MIN_SPACE must be pre-allocated. The rationale is that we 
 # want to pre-allocate at least for the first basic block, to prevent the store 

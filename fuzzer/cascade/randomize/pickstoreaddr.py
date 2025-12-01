@@ -21,6 +21,7 @@ class MemStoreState:
 
     # Should be called once the first basic block is already allocated
     def init_store_locations(self, num_store_locations: int, memview: MemoryView):
+        print(f'{num_store_locations=}')
         for store_location_id in range(num_store_locations):
             next_store_location = memview.gen_random_free_addr(ALIGNMENT_BITS_MAX, 1 << ALIGNMENT_BITS_MAX, 0, memview.memsize)
             if next_store_location is None:
