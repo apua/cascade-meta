@@ -27,19 +27,28 @@ class IntRegPickState:
         if DO_ASSERT:
             self.__last_producer_ids.fill(None) # To avoid luckily having offset 0
         # Mnemonic list for speeding up searches
-        self.__regs_in_state_onehot = {curr_indiv_state: np.ones(self.num_pickable_regs, np.int8) if (curr_indiv_state == IntRegIndivState.FREE) else np.zeros(self.num_pickable_regs, np.int8) for curr_indiv_state in IntRegIndivState}
+        self.__regs_in_state_onehot = {
+                curr_indiv_state: np.ones(self.num_pickable_regs, np.int8)
+                if (curr_indiv_state == IntRegIndivState.FREE)
+                else np.zeros(self.num_pickable_regs, np.int8)
+                for curr_indiv_state in IntRegIndivState}
         # Will ignore x0 if line below is uncommented. This is a design decision.
         # self.__reg_weights[0] = 0
+
     def get_free_regs_onehot(self):
-        ret = [int(self.__reg_states[reg_id] == IntRegIndivState.FREE) for reg_id in range(self.num_pickable_regs)]
+        ret = [
+                int(self.__reg_states[reg_id] == IntRegIndivState.FREE)
+                for reg_id in range(self.num_pickable_regs)]
         if DO_ASSERT:
             assert sum(ret) >= NUM_MIN_FREE_INTREGS
         return ret
+
     def get_free_or_relocused_regs_onehot(self): # WARNING: Use those only for outputs, not for inputs.
         ret = [int(self.__reg_states[reg_id] == IntRegIndivState.FREE) for reg_id in range(self.num_pickable_regs)]
         if DO_ASSERT:
             assert sum(ret) >= NUM_MIN_FREE_INTREGS
         return ret
+
     # Weights after deducting the forbidden registers
     def get_effective_weights(self, authorized_regs_onehot):
         if DO_ASSERT:
@@ -47,9 +56,11 @@ class IntRegPickState:
         if self.nodependencybias:
             return authorized_regs_onehot
         return self.__reg_weights * authorized_regs_onehot
+
     # Returns a free inputreg.
     def pick_int_inputreg(self, authorize_sideeffects: bool = True):
         return random.choices(range(self.num_pickable_regs), self.get_effective_weights(self.get_free_regs_onehot()))[0]
+
     # Excludes the zero register
     def pick_int_inputreg_nonzero(self, authorize_sideeffects: bool = True):
         authorized_regs_onehot = self.get_free_regs_onehot()
@@ -58,12 +69,14 @@ class IntRegPickState:
         ret = random.choices(range(self.num_pickable_regs), self.get_effective_weights(authorized_regs_onehot))[0]
         authorized_regs_onehot[0] = was_zero_authorized
         return ret
+
     # Consuming multiple input registers in one go.
     def pick_int_inputregs(self, n: int):
         authorized_regs_onehot = self.get_free_regs_onehot()
         if DO_ASSERT:
             assert n > 1, "The function pick_int_inputregs should not be used for n < 2. For n = 1, please use pick_int_inputreg."
         return random.choices(range(self.num_pickable_regs), self.get_effective_weights(authorized_regs_onehot), k=n)
+
     # This updates the intregstate.
     def pick_int_outputreg(self, authorize_sideeffects: bool = True):
         authorized_regs_onehot = self.get_free_or_relocused_regs_onehot() # We could use any, but let's not waste the generated ones

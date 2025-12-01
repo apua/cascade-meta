@@ -16,7 +16,7 @@ from cascade.fuzzerstate import FuzzerState as FuzzerStateBase
 from cascade.basicblock import gen_basicblocks
 class FuzzerState(FuzzerStateBase):
     randseed = 5000017
-    nmax_bbs = 51
+    nmax_bbs = 1  #51
     nmax_instructions = None
     memsize = 881540  # 0xd7384
 

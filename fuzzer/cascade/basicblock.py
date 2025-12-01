@@ -29,18 +29,20 @@ import random
 # Does not transmit the next bb address to the control flow instructions.
 # @param fuzzerstate a freshly created fuzzerstate.
 def gen_basicblocks(fuzzerstate):
-    print('==========>')
+    print('\033[33m[INFO]\033[m reset')
     fuzzerstate.reset()
+    print('\033[33m[INFO]\033[m gen_initial_basic_block')
     gen_initial_basic_block(fuzzerstate, SPIKE_STARTADDR)
+    print('\033[33m[INFO]\033[m save_reg_state')
     fuzzerstate.save_reg_state()
     # Sanity checks
     assert fuzzerstate.get_num_fuzzing_instructions_sofar() == 0, "We should have generated only one basic block so far."
     assert fuzzerstate.has_reached_max_instr_num() == False, "We should not have reached the max number of instructions yet."
 
-    # Reserve space for the second basic block (whose address is already fixed).
+    print('\033[33m[INFO]\033[m Reserve space for the second basic block (whose address is already fixed).')
     fuzzerstate.memview.alloc_mem_range(fuzzerstate.next_bb_addr, BASIC_BLOCK_MIN_SPACE)
 
-    # Generate the random data block
+    print('\033[33m[INFO]\033[m Generate the random data block')
     gen_random_data_block(fuzzerstate)
 
     # Reserve space for the final basic block.
@@ -453,9 +455,17 @@ def gen_next_bb_addr(fuzzerstate, isa_class: ISAInstrClass, curr_addr: int, curr
 
 # This must be done early, say, just after generating the first basic block, to ensure that we have enough space.
 def gen_random_data_block(fuzzerstate):
-    lenbytes = random.randrange(RANDOM_DATA_BLOCK_MIN_SIZE_BYTES, RANDOM_DATA_BLOCK_MAX_SIZE_BYTES)
-    fuzzerstate.random_data_block_start_addr = fuzzerstate.memview.gen_random_free_addr(2, lenbytes, 0, fuzzerstate.memsize)
+    #lenbytes = random.randrange(RANDOM_DATA_BLOCK_MIN_SIZE_BYTES, RANDOM_DATA_BLOCK_MAX_SIZE_BYTES)
+    lenbytes = random.randrange(12, 64)
+    fuzzerstate.random_data_block_start_addr = fuzzerstate.memview.gen_random_free_addr(
+        alignment_bits=2,
+        min_space=lenbytes,
+        left_bound=0,
+        right_bound=fuzzerstate.memsize)
     fuzzerstate.random_data_block_end_addr = fuzzerstate.random_data_block_start_addr + lenbytes
+    print(f'{fuzzerstate.random_data_block_start_addr=}')
+    print(f'{fuzzerstate.random_data_block_end_addr=}')
+    #1/0
     if DO_ASSERT:
         assert fuzzerstate.random_data_block_start_addr is not None, f"Maybe you should create the random data block earlier in the creation of the test case."
     fuzzerstate.memview.alloc_mem_range(fuzzerstate.random_data_block_start_addr, lenbytes)

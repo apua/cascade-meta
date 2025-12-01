@@ -33,16 +33,6 @@ class MemoryView:
                 return curr_pair[0] <= addr
         return False
 
-    # @param start: first address of the range
-    # @param end:   last address of the range, excluded
-    # In particular, returns False if it goes beyond the memory boundaries.
-    def is_mem_range_free(self, start: int, end: int):
-        # Find the pair to which `start` belongs, and then check that `end` is still in the same pair.
-        for curr_pair in self.freepairs:
-            if start < curr_pair[1]:
-                return start >= curr_pair[0] and end <= curr_pair[1]
-        return False
-
     # @param addr: the current address
     # @return: the number of addresses, including addr, that are free until the next allocated address (or until the end of the memory).
     def get_available_contig_space(self, addr: int):
@@ -55,11 +45,14 @@ class MemoryView:
                     return 0
         return 0
 
-    # @param start:         first address of the range.
-    # @param alloc_size:    size of the memory region to allocate, excluding the last adress
     def alloc_mem_range(self, start: int, alloc_size: int):
+        """
+        @param start:         first address of the range.
+        @param alloc_size:    size of the memory region to allocate, excluding the last adress
+        """
         end = start + alloc_size
-        print(f'{start=} {alloc_size=} {end=}')
+        #print(f'{start=} {alloc_size=} {end=}')
+        #print(f'{len(self.freepairs)=}\t{hex(start)=}\t{alloc_size=}\t{self.freepairs=}')
         if DO_ASSERT:
             assert end > start, f"Expected start ({start}) > end ({end}) in alloc_mem_range."
         self.occupied_addrs += end-start
@@ -72,25 +65,19 @@ class MemoryView:
                     assert start >= curr_pair[0] and end <= curr_pair[1], "The memory range to allocate is not free."
                 # Remove the tuple and replace it with at most two smaller tuples. This will automatically coalesce.
                 if start == curr_pair[0] and end == curr_pair[1]:
-                    #print(f'{curr_pair_id=} 1')
                     self.freepairs = self.freepairs[:curr_pair_id] + self.freepairs[curr_pair_id+1:]
                     break
                 elif start == curr_pair[0]:
-                    #print(f'{curr_pair_id=} 2')
                     self.freepairs = self.freepairs[:curr_pair_id] + [(end, curr_pair[1])] + self.freepairs[curr_pair_id+1:]
                     break
                 elif end == curr_pair[1]:
-                    #print(f'{curr_pair_id=} 3')
                     self.freepairs = self.freepairs[:curr_pair_id] + [(curr_pair[0], start)] + self.freepairs[curr_pair_id+1:]
                     break
                 else:
-                    #print(f'{curr_pair_id=} 4')
                     self.freepairs = self.freepairs[:curr_pair_id] + [(curr_pair[0], start)] + [(end, curr_pair[1])] + self.freepairs[curr_pair_id+1:]
                     break
-            #else: print(f'{curr_pair_id=} 5')
         else:
             raise ValueError("Trying to allocate a memory range that was already not free.")
-        # print(self.to_string())
 
     # @param store_instr_str: for example `sw`.
     # @param addr may be outside of memview
@@ -118,36 +105,68 @@ class MemoryView:
             return
         self.alloc_mem_range(left_bound, right_bound)
 
-    # @param alignment_bits: bits of alignment. For example, 0 for no specific alignment, 1 for 2-byte alignment, 2 for 4-byte, etc. 
-    # @param min_space:      the minimal number of memory addresses that are free, starting from the returned address 
-    # @param left_bound:     byte address. Included. May exceed memory bounds, in which case will be brought back to memory boundaries.
-    # @param right_bound:    byte address. Excluded. May exceed memory bounds, in which case will be brought back to memory boundaries.
-    # @param max_attempts:   max random attempts. After this number of unsuccessful attempts, the function will return None. Must be strictly positive.
-    # @return None if no corresponding address was found in max_attempts. Else, return the address
-    def gen_random_free_addr(self, alignment_bits: int, min_space: int, left_bound: int, right_bound: int, max_attempts: int = MEMVIEW_ALLOC_MAX_ATTEMPTS):
+    def gen_random_free_addr(self,
+        alignment_bits: int,
+        min_space: int,
+        left_bound: int,
+        right_bound: int,
+        max_attempts: int = MEMVIEW_ALLOC_MAX_ATTEMPTS):
+        """
+        @param alignment_bits: bits of alignment. For example, 0 for no specific alignment, 1 for 2-byte alignment, 2 for 4-byte, etc. 
+        @param min_space:      the minimal number of memory addresses that are free, starting from the returned address 
+        @param left_bound:     byte address. Included. May exceed memory bounds, in which case will be brought back to memory boundaries.
+        @param right_bound:    byte address. Excluded. May exceed memory bounds, in which case will be brought back to memory boundaries.
+        @param max_attempts:   max random attempts. After this number of unsuccessful attempts, the function will return None. Must be strictly positive.
+        @return None if no corresponding address was found in max_attempts. Else, return the address
+        """
+        # XXX: don't understand the usage of the address yet
+        # XXX: don't know what is "alignment_bits" used for
+        
+        def is_mem_range_free(start: int, end: int, freepairs: list):
+            """
+            @param start: first address of the range
+            @param end:   last address of the range, excluded
+            In particular, returns False if it goes beyond the memory boundaries.
+            """
+            # Find the pair to which `start` belongs, and then check that `end` is still in the same pair.
+            for curr_pair in freepairs:
+                if start < curr_pair[1]:
+                    return start >= curr_pair[0] and end <= curr_pair[1]
+            return False
+
         left_bound  = max(left_bound, 0)
         right_bound = min(right_bound, self.memsize)
-        print(f'{left_bound=} {right_bound=}')
+        #print(f'\033[36m[TRACE]\033[m {left_bound=} {right_bound=}')
+        #print(alignment_bits, min_space, left_bound, right_bound, max_attempts)
         if DO_ASSERT:
             assert max_attempts > 0
             assert min_space >= 0
             assert left_bound >= 0
-            assert right_bound <= self.memsize
+            assert right_bound <= self.memsize  # self.memsize is user given
             assert left_bound < right_bound
             # The bounds must be sufficiently spaced. In our use case, this is not at all a problem.
-            assert ((left_bound+(1 << alignment_bits)-1) >> alignment_bits) < ((right_bound-min_space) >> alignment_bits)
+            assert (
+                (left_bound+(1 << alignment_bits)-1) >> alignment_bits) < (
+                (right_bound-min_space) >> alignment_bits
+                )
 
         for attempts in range(max_attempts):
             picked_addr = random.randrange(
                 (left_bound+(1 << alignment_bits)-1) >> alignment_bits,
                 ((right_bound-min_space) >> alignment_bits),
                 ) << alignment_bits
-            if min_space == 0 or self.is_mem_range_free(picked_addr, picked_addr+min_space): # is_mem_range_free returns False if it goes beyond the memory boundaries.
+            #print(f'\033[36m[TRACE]\033[m {attempts=} {hex(picked_addr)=}')
+            #print(f'{((left_bound + (1 << alignment_bits) - 1) >> alignment_bits)=}')
+            #print(f'{((right_bound - min_space) >> alignment_bits)=}')
+            #print(f'{(picked_addr >> alignment_bits)=}')
+            #print(f'{hex(picked_addr)=}')
+
+            # is_mem_range_free returns False if it goes beyond the memory boundaries.
+            if min_space == 0 or is_mem_range_free(picked_addr, picked_addr+min_space, self.freepairs):
                 if DO_ASSERT:
                     assert picked_addr >= 0
                     assert picked_addr + min_space <= self.memsize
                     assert picked_addr % (1 << alignment_bits) == 0
-                print(f'\033[31m{attempts=}\033[m')
                 return picked_addr
         return None
 
