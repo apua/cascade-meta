@@ -30,7 +30,9 @@ def gen_elf_from_bbs(fuzzerstate, is_spike_resolution, prefixname: str, test_ide
                 if DO_ASSERT:
                     assert curr_addr not in addr_instrs, f"Trying to write twice to the same address: {hex(curr_addr)}"
                 addr_instrs[curr_addr] = curr_byte
+    print(f'\033[35m[DEBUG]\033[m {len(addr_instrs)=} {len(fuzzerstate.bb_start_addr_seq)=} {list(map(hex, fuzzerstate.bb_start_addr_seq))=}')
 
+    assert fuzzerstate.ctxsv_bb == []
     for instr_id_in_bb, instr_obj in enumerate(fuzzerstate.ctxsv_bb):
         if instr_obj is None:
             raise ValueError(f"instrobj is None for ctxsv_bb at index {instr_id_in_bb}")
@@ -49,10 +51,12 @@ def gen_elf_from_bbs(fuzzerstate, is_spike_resolution, prefixname: str, test_ide
             if DO_ASSERT:
                 assert curr_addr not in addr_instrs, f"Trying to write twice to the same address: {hex(curr_addr)}"
             addr_instrs[curr_addr] = curr_byte
+    print(f'\033[35m[DEBUG]\033[m {len(addr_instrs)=} {len(fuzzerstate.initial_reg_data_content)=} {list(map(hex, fuzzerstate.initial_reg_data_content))=}')
 
     # Add the final basic block
     if is_spike_resolution:
         final_block = finalblock_spike_resolution()
+        # XXX: final_block == [JALInstruction("jal", 0, 0)]
     else:
         final_block = fuzzerstate.final_bb
     for instr_id_in_bb, instr_obj in enumerate(final_block):
@@ -62,6 +66,7 @@ def gen_elf_from_bbs(fuzzerstate, is_spike_resolution, prefixname: str, test_ide
             if DO_ASSERT:
                 assert curr_addr not in addr_instrs, f"Trying to write twice to the same address: {hex(curr_addr)}"
             addr_instrs[curr_addr] = curr_byte
+    print(f'\033[35m[DEBUG]\033[m {len(addr_instrs)=} {len(fuzzerstate.initial_reg_data_content)=} {list(map(hex, fuzzerstate.initial_reg_data_content))=}')
 
     # Add the random data block
     for word_id, word_content in enumerate(fuzzerstate.random_block_content4by4bytes):
@@ -77,6 +82,8 @@ def gen_elf_from_bbs(fuzzerstate, is_spike_resolution, prefixname: str, test_ide
     for curr_addr, curr_byte in addr_instrs.items():
         curr_bytearray[curr_addr] = curr_byte
     curr_bytes = bytes(curr_bytearray)
+    assert len(curr_bytes) % 4 == 0
+    #for i in range(0, len(curr_bytes), 4): print(hex(0x80000000+i), '' if (v := ''.join(f'{v:02x}' for v in curr_bytes[i:i+4][::-1])) == '00000000' else v)
 
     elfpath = os.path.join(PATH_TO_TMP, f"{prefixname}{test_identifier}.elf")
 

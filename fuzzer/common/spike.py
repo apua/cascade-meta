@@ -56,37 +56,40 @@ def __get_all_regs_from_spike_out(spike_out: str, is_design_64bit: bool):
 # @param dump_freg_format either '' or 'd' for 'fregd' or 's' for 'fregs'.
 def __gen_spike_dbgcmd_file_for_trace_regs_at_pc_locs(identifier_str: str, startpc: int, regdump_reqs, dump_final_reg_vals: bool, final_addr: int, num_fp_regs: int, dump_freg_format: str = ''):
     assert not dump_freg_format # This assertion is to check whether we actually can remove dump_freg_format.
-    path_to_debug_file = os.path.join(PATH_TO_TMP, 'dbgcmds', f"cmds_trace_regs_at_pc_locs_{identifier_str}")
-    # if not os.path.exists(path_to_debug_file):
-    Path(os.path.dirname(path_to_debug_file)).mkdir(parents=True, exist_ok=True)
-    spike_debug_commands = [
-        f"until pc 0 0x{startpc:x}"
-    ]
+
+    path_to_debug_file = Path('cascade-data/dbgcmds', f'cmds_trace_regs_at_pc_locs_{identifier_str}')
+    path_to_debug_file.parent.mkdir(parents=True, exist_ok=True)
+
+    D = spike_debug_commands = [f"until pc 0 0x{startpc:x}"]
     prev_req_pc = -1 # Just make sure it won't coincide with the first requested pc.
     for next_pc, is_float_req, reg_to_dump in regdump_reqs:
+        assert is_float_req is False
+
         # The surrounding condition on permits to get multiple registers in the same PC, without issuing an useless `until`. This is useful for non-taken branches, for example, in which we need to know the values of both operands.
         if prev_req_pc != next_pc:
-            spike_debug_commands.append(f"until pc 0 0x{startpc+next_pc:x}")
+            D.append(f"until pc 0 0x{startpc+next_pc:x}")
             prev_req_pc = next_pc
+
         # No elif here!
         if reg_to_dump == 'priv':
-            spike_debug_commands.append('priv 0')
+            D.append('priv 0')
         else:
-            spike_debug_commands.append(f"{'f' if is_float_req else ''}reg 0 {reg_to_dump}")
-        # spike_debug_commands.append('pc 0')
+            D.append(f"{'f' if is_float_req else ''}reg 0 {reg_to_dump}")
+        # D.append('pc 0')
+
     if dump_final_reg_vals:
-        spike_debug_commands.append(f"until pc 0 0x{final_addr:x}")
-        spike_debug_commands.append('reg 0')
+        D.append(f"until pc 0 0x{final_addr:x}")
+        D.append('reg 0')
         for fp_reg_id in range(num_fp_regs):
-            spike_debug_commands.append(f"freg 0 {FPREG_ABINAMES[fp_reg_id]}")
+            D.append(f"freg 0 {FPREG_ABINAMES[fp_reg_id]}")
         if dump_freg_format:
             for fp_reg_id in range(num_fp_regs):
-                spike_debug_commands.append(f"freg{dump_freg_format} 0 {FPREG_ABINAMES[fp_reg_id]}")
-    spike_debug_commands.append('q\n')
-    spike_debug_commands_str = '\n'.join(spike_debug_commands)
+                D.append(f"freg{dump_freg_format} 0 {FPREG_ABINAMES[fp_reg_id]}")
 
-    with open(path_to_debug_file, 'w') as f:
-        f.write(spike_debug_commands_str)
+    D.append('q')
+
+    with path_to_debug_file.open('w') as f:
+        f.write('\n'.join(D) + '\n')
 
     return path_to_debug_file
 
@@ -130,25 +133,16 @@ def run_trace_regs_at_pc_locs(identifier_str: str, elfpath: str, rvflags: str, s
 
     # First, create the file that contains the commands, if it does not already exist
     path_to_debug_file = __gen_spike_dbgcmd_file_for_trace_regs_at_pc_locs(identifier_str, startpc, regdump_reqs, dump_final_reg_vals, final_addr, num_fp_regs, dump_freg_format)
+    #subprocess.run(['cat', path_to_debug_file])
 
     # Second, run the Spike command
-    spike_shell_command = (
-        "spike",
-        "-d",
-        f"--debug-cmd={path_to_debug_file}",
-        f"--isa={rvflags}",
-        f"--pc={startpc}",
-        elfpath
-    )
-
-    spike_out = subprocess.run(spike_shell_command, capture_output=True).stderr
+    spike_shell_command = f'spike -d --debug-cmd={path_to_debug_file} --isa={rvflags} --pc={startpc} {elfpath}'
+    spike_out = subprocess.run(spike_shell_command, shell=True, capture_output=True).stderr
+    #print(spike_out.decode())
     #try:
     #    spike_out = subprocess.run(spike_shell_command, capture_output=True, timeout=get_spike_timeout_seconds()).stderr
     #except Exception as e:
     #    raise Exception(f"Spike timeout (A) for identifier str: {identifier_str}. Command: {' '.join(filter(lambda s: '--debug-cmd' not in s, spike_shell_command))}  Debug file: {path_to_debug_file}")
-    if not NO_REMOVE_TMPFILES:
-        os.remove(path_to_debug_file)
-        del path_to_debug_file
 
     addr_str_splitted = spike_out.split(b"\n")
     addr_str_splitted = list(filter(lambda s: b'exception' not in s, addr_str_splitted))
@@ -164,6 +158,12 @@ def run_trace_regs_at_pc_locs(identifier_str: str, elfpath: str, rvflags: str, s
         else:
             raise NotImplementedError(f"Line not supported: {addr_str_splitted[dumpreq_id+1]} -- previous line is {addr_str_splitted[dumpreq_id]}.")
 
+    # `ret` is the list of value of requested registers
+    #print(f'{hex(ret[0])=}')
+    #print(f'{hex(ret[1])=}')
+    #print(f'{hex(ret[-2])=}')
+    #print(f'{hex(ret[-1])=}')
+
     # Potentially get the final register values
     if dump_final_reg_vals:
         final_intreg_vals = __get_all_regs_from_spike_out(spike_out, '64' in rvflags)
@@ -177,11 +177,18 @@ def run_trace_regs_at_pc_locs(identifier_str: str, elfpath: str, rvflags: str, s
                     break
             for fp_reg_id in range(num_fp_regs):
                 final_fpureg_vals.append(int(addr_str_splitted[fp_base_row_addr+fp_reg_id][18+8*int(not has_fpdouble_support):], 16))
+
+            assert dump_freg_format == ''  # never used
             if dump_freg_format:
                 final_fpureg_archvals = []
                 for fp_reg_id in range(num_fp_regs):
                     final_fpureg_archvals.append(addr_str_splitted[fp_base_row_addr+num_fp_regs+fp_reg_id])
                 return ret, (final_intreg_vals, final_fpureg_vals, final_fpureg_archvals)
+
+        # `final_intreg_vals` is the list of value of integer registers
+        # `final_fpureg_vals` is the list of value of floating point registers
+        #for v in final_intreg_vals: print(f'{hex(v)=}')
+        #for v in final_fpureg_vals: print(f'{hex(v)=}')
         return ret, (final_intreg_vals, final_fpureg_vals)
     else:
         return ret

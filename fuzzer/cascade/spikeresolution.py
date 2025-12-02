@@ -28,15 +28,18 @@ def gen_regdump_reqs(fuzzerstate):
     for bb_start_addr, bb_instrs in zip(fuzzerstate.bb_start_addr_seq, fuzzerstate.instr_objs_seq):
         for bb_instr_id, bb_instr in enumerate(bb_instrs):
             curr_addr = bb_start_addr + 4*bb_instr_id # NO_COMPRESSED
+            #print(f'\033[36m[TRACE]\033[m {hex(curr_addr)=} {bb_instr=} {bb_instr_id=}')
 
             # All we need is the value of the dependent register at consumption time.
             if isinstance(bb_instr, PlaceholderConsumerInstr):
                 ret.append((curr_addr, False, bb_instr.rdep))
+                #print(f'\033[36m[TRACE]\033[m {hex(curr_addr)=} {bb_instr.rdep=}')
             # For branches, we need to know the val of both operands to generate a suitable opcode later.
             if isinstance(bb_instr, BranchInstruction):
                 # if not bb_instr.plan_taken:
                 ret.append((curr_addr, False, bb_instr.rs1)) # rs1 is the first  dependent register.
                 ret.append((curr_addr, False, bb_instr.rs2)) # rs2 is the second dependent register.
+                #print(f'\033[36m[TRACE]\033[m {hex(curr_addr)=} {bb_instr.rs1=} {bb_instr.rs2=}')
     return ret
 
 # @brief generates the register dump requests made to spike for pruning.
@@ -185,19 +188,19 @@ def _feed_regdump_to_instrs(fuzzerstate, regdumps: list):
 
     # Feed the consumer-level information into the producers
     for bb_instrlist in fuzzerstate.instr_objs_seq:
-        print(f'\033[36m[TRACE]\033[m {len(bb_instrlist)=}')
+        #print(f'\033[36m[TRACE]\033[m {len(bb_instrlist)=}')
         #for index, bb_instr in enumerate(bb_instrlist): print(index, getattr(bb_instr, 'instr_str', None))
         for bb_instr in bb_instrlist:
             if isinstance(bb_instr, (PlaceholderProducerInstr0, PlaceholderProducerInstr1)):
-                print(f'\033[36m[TRACE]\033[m {bb_instr.producer_id=}')
+                #print(f'\033[36m[TRACE]\033[m {bb_instr.producer_id=}')
                 if bb_instr.producer_id in producer_id_to_rdepval:
                     # Rationale: target_addr = rdep ^ rprod, where target_addr is spike_resolution_offset
                     bb_instr.rtl_offset = producer_id_to_rdepval[bb_instr.producer_id] ^ bb_instr.spike_resolution_offset ^ SPIKE_STARTADDR
-                    print(f'\033[36m[TRACE]\033[m (1) {bb_instr.producer_id=} {hex(bb_instr.rtl_offset)=}')
+                    #print(f'\033[36m[TRACE]\033[m (1) {bb_instr.producer_id=} {hex(bb_instr.rtl_offset)=}')
                 else:
                     # If this producer is never used, then we need to ensure that it remains the same as in the Spike resolution
                     bb_instr.rtl_offset = bb_instr.spike_resolution_offset
-                    print(f'\033[36m[TRACE]\033[m (2) {bb_instr.producer_id=} {hex(bb_instr.rtl_offset)=}')
+                    #print(f'\033[36m[TRACE]\033[m (2) {bb_instr.producer_id=} {hex(bb_instr.rtl_offset)=}')
 
 def _transmit_addrs_to_producers_for_spike_resolution(fuzzerstate):
     for bb_instrlist in fuzzerstate.instr_objs_seq:
@@ -240,26 +243,27 @@ def _check_pc_trace_from_spike(fuzzerstate, spike_pc_seq):
 # 1 (does not contain the zero register)
 def spike_resolution(fuzzerstate, check_pc_spike_again: bool = False):
     design_name = fuzzerstate.design_name
+    design_march_flags_nocompressed = get_design_march_flags_nocompressed(design_name)
+
     _transmit_addrs_to_producers_for_spike_resolution(fuzzerstate)
     # print('start addrs', list(map(hex, fuzzerstate.bb_start_addr_seq)))
+
     spike_resolution_elfpath = gen_elf_from_bbs(fuzzerstate, True, 'spikeresol', fuzzerstate.instance_to_str(), SPIKE_STARTADDR)
     # print('Spike resolution elfpath:', spike_resolution_elfpath)
-    regdump_reqs = gen_regdump_reqs(fuzzerstate)
+
+    regdump_reqs = gen_regdump_reqs(fuzzerstate)  # what is the return type?
     flat_instr_objs = list(itertools.chain.from_iterable(fuzzerstate.instr_objs_seq))
     # len(flat_instr_objs)+1: the +1 is to reach the final basic block and thereby overwrite the potential destination register of a jal/jalr
     regvals, (finalintregvals_spikeresol, finalfpuregvals_spikeresol) = run_trace_regs_at_pc_locs(
             fuzzerstate.instance_to_str(),
             spike_resolution_elfpath,
-            get_design_march_flags_nocompressed(design_name),
+            design_march_flags_nocompressed,
             SPIKE_STARTADDR,
             regdump_reqs,
             True,
             fuzzerstate.final_bb_base_addr+SPIKE_STARTADDR,
             fuzzerstate.num_pickable_floating_regs if fuzzerstate.design_has_fpu else 0, fuzzerstate.design_has_fpud
             )
-    #if not NO_REMOVE_TMPFILES:
-    #    os.remove(spike_resolution_elfpath)
-    #    del spike_resolution_elfpath
 
     # IMPORTANT: We reset the randomness here to have deterministic branch instructions.
     # (Rare) example where it matters: assume we need to pop the last bb, say with id 20. Then we could have a bug with request size 19 but not with request size 20, or vice versa.
@@ -277,7 +281,7 @@ def spike_resolution(fuzzerstate, check_pc_spike_again: bool = False):
         print(f'\033[35m[DEBUG]\033[m {SPIKE_STARTADDR=}')
         if 1 or NO_REMOVE_TMPFILES:
             print('rtl_spike_elfpath:', rtl_spike_elfpath)
-        rtl_spike_pc_seq, (finalintregvals_spikecheck, finalfpuregvals_spikecheck) = run_trace_all_pcs(fuzzerstate.instance_to_str(), rtl_spike_elfpath, get_design_march_flags_nocompressed(design_name), len(flat_instr_objs)+1, SPIKE_STARTADDR, True,  fuzzerstate.num_pickable_floating_regs if fuzzerstate.design_has_fpu else 0, fuzzerstate.design_has_fpud, fuzzerstate)
+        rtl_spike_pc_seq, (finalintregvals_spikecheck, finalfpuregvals_spikecheck) = run_trace_all_pcs(fuzzerstate.instance_to_str(), rtl_spike_elfpath, design_march_flags_nocompressed, len(flat_instr_objs)+1, SPIKE_STARTADDR, True,  fuzzerstate.num_pickable_floating_regs if fuzzerstate.design_has_fpu else 0, fuzzerstate.design_has_fpud, fuzzerstate)
         #if not NO_REMOVE_TMPFILES:
         #    os.remove(rtl_spike_elfpath)
         #    del rtl_spike_elfpath
