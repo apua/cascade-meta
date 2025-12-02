@@ -120,10 +120,13 @@ class FuzzerState(FuzzerStateBase):
 print('\033[33m[INFO] fuzzerstate\033[m')
 fuzzerstate = FuzzerState()
 assert (L := len(dir(fuzzerstate))) == 101
+assert fuzzerstate.bb_start_addr_seq == []
 
 print('\033[33m[INFO] gen_basicblocks\033[m')
 gen_basicblocks(fuzzerstate)
 assert (L := len(dir(fuzzerstate))) == 105, 'added 4 properties: %s' % L
+assert fuzzerstate.bb_start_addr_seq == [0x0]
+assert fuzzerstate.instr_objs_seq.__len__() == 1  # only init basic block?
 
 print('\033[33m[INFO] spike_resolution\033[m')
 from cascade.spikeresolution import spike_resolution

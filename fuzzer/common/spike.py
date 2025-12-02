@@ -141,7 +141,9 @@ def run_trace_regs_at_pc_locs(identifier_str: str, elfpath: str, rvflags: str, s
         elfpath
     )
 
+    print('spike_shell_command', ' '.join(spike_shell_command))
     spike_out = subprocess.run(spike_shell_command, capture_output=True).stderr
+    print('spike_out', spike_out.decode())
     #try:
     #    spike_out = subprocess.run(spike_shell_command, capture_output=True, timeout=get_spike_timeout_seconds()).stderr
     #except Exception as e:
@@ -168,6 +170,7 @@ def run_trace_regs_at_pc_locs(identifier_str: str, elfpath: str, rvflags: str, s
     if dump_final_reg_vals:
         final_intreg_vals = __get_all_regs_from_spike_out(spike_out, '64' in rvflags)
         final_fpureg_vals = []
+        print(f'{final_intreg_vals=} {final_fpureg_vals=}')
         # Get the FPU regs
         if num_fp_regs:
             # Find the base for the FPU reg dumps
@@ -182,6 +185,7 @@ def run_trace_regs_at_pc_locs(identifier_str: str, elfpath: str, rvflags: str, s
                 for fp_reg_id in range(num_fp_regs):
                     final_fpureg_archvals.append(addr_str_splitted[fp_base_row_addr+num_fp_regs+fp_reg_id])
                 return ret, (final_intreg_vals, final_fpureg_vals, final_fpureg_archvals)
+        print(f'{final_intreg_vals=} {final_fpureg_vals=}')
         return ret, (final_intreg_vals, final_fpureg_vals)
     else:
         return ret

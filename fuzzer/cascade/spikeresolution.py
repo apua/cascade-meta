@@ -203,6 +203,7 @@ def _transmit_addrs_to_producers_for_spike_resolution(fuzzerstate):
     for bb_instrlist in fuzzerstate.instr_objs_seq:
         for bb_instr in bb_instrlist:
             if isinstance(bb_instr, PlaceholderProducerInstr0):
+                print(f'{bb_instr=}')
                 if bb_instr.producer_id not in fuzzerstate.producer_id_to_tgtaddr:
                     # We cannot provide a totally random value in all cases. Some CSRs will not tolerate it.
                     # So far, I think the only CSR that does not tolerate random values and that has a producer id is tvec.
@@ -210,6 +211,7 @@ def _transmit_addrs_to_producers_for_spike_resolution(fuzzerstate):
                     fuzzerstate.producer_id_to_tgtaddr[bb_instr.producer_id] = random.randrange(1 << 30) << 2
                 bb_instr.spike_resolution_offset = fuzzerstate.producer_id_to_tgtaddr[bb_instr.producer_id]
             elif isinstance(bb_instr, PlaceholderProducerInstr1):
+                print(f'{bb_instr=}')
                 # print('Determ for prod id', bb_instr.producer_id, hex(fuzzerstate.producer_id_to_tgtaddr[bb_instr.producer_id]))
                 bb_instr.spike_resolution_offset = fuzzerstate.producer_id_to_tgtaddr[bb_instr.producer_id]
 
@@ -240,8 +242,15 @@ def _check_pc_trace_from_spike(fuzzerstate, spike_pc_seq):
 # 1 (does not contain the zero register)
 def spike_resolution(fuzzerstate, check_pc_spike_again: bool = False):
     design_name = fuzzerstate.design_name
-    _transmit_addrs_to_producers_for_spike_resolution(fuzzerstate)
+    design_march_flags_nocompressed = get_design_march_flags_nocompressed(design_name)
+    assert design_march_flags_nocompressed == 'rv64g'
+
+    assert all(not isinstance(bb_instr, (PlaceholderProducerInstr0, PlaceholderProducerInstr1))
+               for bb_instrlist in fuzzerstate.instr_objs_seq for bb_instr in bb_instrlist)
+    #_transmit_addrs_to_producers_for_spike_resolution(fuzzerstate)
     # print('start addrs', list(map(hex, fuzzerstate.bb_start_addr_seq)))
+    assert fuzzerstate.bb_start_addr_seq == [0x0]
+
     spike_resolution_elfpath = gen_elf_from_bbs(fuzzerstate, True, 'spikeresol', fuzzerstate.instance_to_str(), SPIKE_STARTADDR)
     # print('Spike resolution elfpath:', spike_resolution_elfpath)
     regdump_reqs = gen_regdump_reqs(fuzzerstate)
@@ -250,7 +259,7 @@ def spike_resolution(fuzzerstate, check_pc_spike_again: bool = False):
     regvals, (finalintregvals_spikeresol, finalfpuregvals_spikeresol) = run_trace_regs_at_pc_locs(
             fuzzerstate.instance_to_str(),
             spike_resolution_elfpath,
-            get_design_march_flags_nocompressed(design_name),
+            design_march_flags_nocompressed,
             SPIKE_STARTADDR,
             regdump_reqs,
             True,
@@ -277,7 +286,15 @@ def spike_resolution(fuzzerstate, check_pc_spike_again: bool = False):
         print(f'\033[35m[DEBUG]\033[m {SPIKE_STARTADDR=}')
         if 1 or NO_REMOVE_TMPFILES:
             print('rtl_spike_elfpath:', rtl_spike_elfpath)
-        rtl_spike_pc_seq, (finalintregvals_spikecheck, finalfpuregvals_spikecheck) = run_trace_all_pcs(fuzzerstate.instance_to_str(), rtl_spike_elfpath, get_design_march_flags_nocompressed(design_name), len(flat_instr_objs)+1, SPIKE_STARTADDR, True,  fuzzerstate.num_pickable_floating_regs if fuzzerstate.design_has_fpu else 0, fuzzerstate.design_has_fpud, fuzzerstate)
+        rtl_spike_pc_seq, (finalintregvals_spikecheck, finalfpuregvals_spikecheck) = run_trace_all_pcs(
+                fuzzerstate.instance_to_str(),
+                rtl_spike_elfpath,
+                design_march_flags_nocompressed,
+                len(flat_instr_objs)+1,
+                SPIKE_STARTADDR,
+                True,
+                fuzzerstate.num_pickable_floating_regs if fuzzerstate.design_has_fpu else 0,
+                fuzzerstate.design_has_fpud, fuzzerstate)
         #if not NO_REMOVE_TMPFILES:
         #    os.remove(rtl_spike_elfpath)
         #    del rtl_spike_elfpath
