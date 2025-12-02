@@ -25,8 +25,6 @@ def gen_elf_from_bbs(fuzzerstate, is_spike_resolution, prefixname: str, test_ide
     for bb_start_addr, bb_instrs in zip(fuzzerstate.bb_start_addr_seq, fuzzerstate.instr_objs_seq):
         for instr_id_in_bb, instr_obj in enumerate(bb_instrs):
             curr_bytecode = instr_obj.gen_bytecode_int(is_spike_resolution=is_spike_resolution).to_bytes(4, 'little')
-            print(instr_obj)
-            assert instr_obj.gen_bytecode_int(is_spike_resolution=True).to_bytes(4, 'little') == instr_obj.gen_bytecode_int(is_spike_resolution=False).to_bytes(4, 'little')
             for curr_byte_id, curr_byte in enumerate(curr_bytecode):
                 curr_addr = bb_start_addr + 4*instr_id_in_bb + curr_byte_id # NO_COMPRESSED
                 if DO_ASSERT:
