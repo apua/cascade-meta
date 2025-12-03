@@ -221,20 +221,16 @@ def _check_pc_trace_from_spike(fuzzerstate, spike_pc_seq):
     # Check that the PC sequence corresponds to the expected addresses
     curr_id_in_spike_pc_seq = 0
     prev_pc = -1
-    id_in_spike_pc_seq = 0
     for bb_id, bb_instrlist in enumerate(fuzzerstate.instr_objs_seq):
         for bb_instr_id, bb_instr in enumerate(bb_instrlist):
-            spike_pc = spike_pc_seq[curr_id_in_spike_pc_seq]
-            curr_id_in_spike_pc_seq += 1
-            expected_pc = SPIKE_STARTADDR + fuzzerstate.bb_start_addr_seq[bb_id] + 4*bb_instr_id # NO_COMPRESSED
+            spike_pc = spike_pc_seq[curr_id_in_spike_pc_seq]; curr_id_in_spike_pc_seq += 1
+            expected_pc = SPIKE_STARTADDR + fuzzerstate.bb_start_addr_seq[bb_id] + 4 * bb_instr_id  # NO_COMPRESSED
 
-            if spike_pc != expected_pc:
-                raise ValueError(f"PC mismatch: spike said `{hex(spike_pc)}`, but we expected `{hex(expected_pc)}`. BB id: `{hex(bb_id)}`, instr id: `{hex(bb_instr_id)}`. Prev pc: `{hex(prev_pc)}`. Spike instr id: {curr_id_in_spike_pc_seq}. Fuzzerstate identification: {fuzzerstate.instance_to_str()}")
+            assert spike_pc == expected_pc, f"PC mismatch: spike said `{hex(spike_pc)}`, but we expected `{hex(expected_pc)}`. BB id: `{hex(bb_id)}`, instr id: `{hex(bb_instr_id)}`. Prev pc: `{hex(prev_pc)}`. Spike instr id: {curr_id_in_spike_pc_seq}. Fuzzerstate identification: {fuzzerstate.instance_to_str()}"
             prev_pc = expected_pc
-            id_in_spike_pc_seq += 1
 
     # Check that the final bb is reached
-    assert(spike_pc_seq[id_in_spike_pc_seq] == SPIKE_STARTADDR + fuzzerstate.final_bb_base_addr), f"spike_pc_seq[id_in_spike_pc_seq]: `{hex(spike_pc_seq[id_in_spike_pc_seq])}`, fuzzerstate.final_bb_base_addr: {hex(SPIKE_STARTADDR + fuzzerstate.final_bb_base_addr)}"
+    assert spike_pc_seq[curr_id_in_spike_pc_seq] == SPIKE_STARTADDR + fuzzerstate.final_bb_base_addr, f"spike_pc_seq[curr_id_in_spike_pc_seq]: `{hex(spike_pc_seq[curr_id_in_spike_pc_seq])}`, fuzzerstate.final_bb_base_addr: {hex(SPIKE_STARTADDR + fuzzerstate.final_bb_base_addr)}"
 
 
 # Takes a fuzzerstate after its basic blocks were generated.
@@ -268,33 +264,43 @@ def spike_resolution(fuzzerstate, check_pc_spike_again: bool = False):
     # IMPORTANT: We reset the randomness here to have deterministic branch instructions.
     # (Rare) example where it matters: assume we need to pop the last bb, say with id 20. Then we could have a bug with request size 19 but not with request size 20, or vice versa.
     random.seed(fuzzerstate.randseed) # We could as well seed with zero here.
-    _feed_regdump_to_instrs(fuzzerstate, regvals)
+    _feed_regdump_to_instrs(fuzzerstate, regvals)  # XXX: the branch instructions are changed
 
     # Use spike to check the rtl elf if requested
     assert check_pc_spike_again is True
     if check_pc_spike_again:
         # Generate the RTL ELF, but located for spike at SPIKE_STARTADDR
+        # XXX: the generated ELF "doublecheck" is the same as for RTL
         rtl_spike_elfpath = gen_elf_from_bbs(fuzzerstate, False, 'spikedoublecheck', fuzzerstate.instance_to_str(), SPIKE_STARTADDR)
-        print(f'\033[35m[DEBUG]\033[m {fuzzerstate=}')
-        print(f'\033[35m[DEBUG]\033[m {rtl_spike_elfpath=}')
-        print(f'\033[35m[DEBUG]\033[m {fuzzerstate.instance_to_str()=}')
-        print(f'\033[35m[DEBUG]\033[m {SPIKE_STARTADDR=}')
-        if 1 or NO_REMOVE_TMPFILES:
-            print('rtl_spike_elfpath:', rtl_spike_elfpath)
-        rtl_spike_pc_seq, (finalintregvals_spikecheck, finalfpuregvals_spikecheck) = run_trace_all_pcs(fuzzerstate.instance_to_str(), rtl_spike_elfpath, design_march_flags_nocompressed, len(flat_instr_objs)+1, SPIKE_STARTADDR, True,  fuzzerstate.num_pickable_floating_regs if fuzzerstate.design_has_fpu else 0, fuzzerstate.design_has_fpud, fuzzerstate)
-        #if not NO_REMOVE_TMPFILES:
-        #    os.remove(rtl_spike_elfpath)
-        #    del rtl_spike_elfpath
+        rtl_spike_pc_seq, (finalintregvals_spikecheck, finalfpuregvals_spikecheck) = run_trace_all_pcs(
+                fuzzerstate.instance_to_str(),
+                rtl_spike_elfpath,
+                design_march_flags_nocompressed,
+                len(flat_instr_objs)+1,
+                SPIKE_STARTADDR,
+                True,
+                fuzzerstate.num_pickable_floating_regs if fuzzerstate.design_has_fpu else 0,
+                fuzzerstate.design_has_fpud,
+                fuzzerstate)
 
         # Check PC sequence
-        _check_pc_trace_from_spike(fuzzerstate, rtl_spike_pc_seq)
+        _check_pc_trace_from_spike(fuzzerstate, rtl_spike_pc_seq)  # XXX: assert only
+
         # Check register matching
-        for reg_id in range(1, fuzzerstate.num_pickable_regs):
+        for reg_id in range(1, fuzzerstate.num_pickable_regs):  # XXX: assert only
+            #print(fuzzerstate.intregpickstate.num_pickable_regs, fuzzerstate.intregpickstate.nodependencybias)
+            #print(fuzzerstate.intregpickstate._IntRegPickState__reg_states)  # List[FREE|CONSUMED]
+            assert all(v in (IntRegIndivState.FREE, IntRegIndivState.CONSUMED)
+                       for v in fuzzerstate.intregpickstate._IntRegPickState__reg_states)
+
             # The transient registers are not expected to match.
             if fuzzerstate.intregpickstate.get_regstate(reg_id) in (IntRegIndivState.FREE, IntRegIndivState.CONSUMED):
                 assert finalintregvals_spikeresol[reg_id] == finalintregvals_spikecheck[reg_id], f"Mismatch in x{reg_id} value. Resolution: `{hex(finalintregvals_spikeresol[reg_id])}`, check: `{hex(finalintregvals_spikecheck[reg_id])}`. Reg state: `{fuzzerstate.intregpickstate.get_regstate(reg_id)}`."
+
+        assert fuzzerstate.design_has_fpu is True
         if fuzzerstate.design_has_fpu:
             for reg_id in range(fuzzerstate.num_pickable_floating_regs):
                 assert finalfpuregvals_spikeresol[reg_id] == finalfpuregvals_spikecheck[reg_id], f"Mismatch in f{reg_id} value. Resolution: `{hex(finalfpuregvals_spikeresol[reg_id])}`, check: `{hex(finalintregvals_spikecheck[reg_id])}`."
 
+    assert len(finalintregvals_spikeresol) == 32  # all known integer registers
     return finalintregvals_spikeresol[1:], finalfpuregvals_spikeresol

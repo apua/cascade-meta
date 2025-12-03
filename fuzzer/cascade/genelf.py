@@ -30,7 +30,7 @@ def gen_elf_from_bbs(fuzzerstate, is_spike_resolution, prefixname: str, test_ide
                 if DO_ASSERT:
                     assert curr_addr not in addr_instrs, f"Trying to write twice to the same address: {hex(curr_addr)}"
                 addr_instrs[curr_addr] = curr_byte
-    print(f'\033[35m[DEBUG]\033[m {len(addr_instrs)=} {len(fuzzerstate.bb_start_addr_seq)=} {list(map(hex, fuzzerstate.bb_start_addr_seq))=}')
+    #print(f'\033[35m[DEBUG]\033[m {len(addr_instrs)=} {len(fuzzerstate.bb_start_addr_seq)=} {list(map(hex, fuzzerstate.bb_start_addr_seq))=}')
 
     assert fuzzerstate.ctxsv_bb == []
     for instr_id_in_bb, instr_obj in enumerate(fuzzerstate.ctxsv_bb):
@@ -51,7 +51,7 @@ def gen_elf_from_bbs(fuzzerstate, is_spike_resolution, prefixname: str, test_ide
             if DO_ASSERT:
                 assert curr_addr not in addr_instrs, f"Trying to write twice to the same address: {hex(curr_addr)}"
             addr_instrs[curr_addr] = curr_byte
-    print(f'\033[35m[DEBUG]\033[m {len(addr_instrs)=} {len(fuzzerstate.initial_reg_data_content)=} {list(map(hex, fuzzerstate.initial_reg_data_content))=}')
+    #print(f'\033[35m[DEBUG]\033[m {len(addr_instrs)=} {len(fuzzerstate.initial_reg_data_content)=} {list(map(hex, fuzzerstate.initial_reg_data_content))=}')
 
     # Add the final basic block
     if is_spike_resolution:
@@ -66,7 +66,7 @@ def gen_elf_from_bbs(fuzzerstate, is_spike_resolution, prefixname: str, test_ide
             if DO_ASSERT:
                 assert curr_addr not in addr_instrs, f"Trying to write twice to the same address: {hex(curr_addr)}"
             addr_instrs[curr_addr] = curr_byte
-    print(f'\033[35m[DEBUG]\033[m {len(addr_instrs)=} {len(fuzzerstate.initial_reg_data_content)=} {list(map(hex, fuzzerstate.initial_reg_data_content))=}')
+    #print(f'\033[35m[DEBUG]\033[m {len(addr_instrs)=} {len(fuzzerstate.initial_reg_data_content)=} {list(map(hex, fuzzerstate.initial_reg_data_content))=}')
 
     # Add the random data block
     for word_id, word_content in enumerate(fuzzerstate.random_block_content4by4bytes):

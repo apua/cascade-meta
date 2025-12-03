@@ -88,35 +88,25 @@ def __gen_spike_dbgcmd_file_for_trace_regs_at_pc_locs(identifier_str: str, start
 
     D.append('q')
 
-    with path_to_debug_file.open('w') as f:
-        f.write('\n'.join(D) + '\n')
-
+    path_to_debug_file.write_text('\n'.join(D) + '\n')
     return path_to_debug_file
 
 # @brief Generate the spike debug command file (as understood by spike --debug-cmd) and returns its path.
 # This command file will prompt the PC at every cycle
 def __gen_spike_dbgcmd_file_for_trace_pcs(identifier_str: str, numinstrs: int, startpc: int, dump_final_reg_vals: bool, num_fp_regs: int):
-    path_to_debug_file = os.path.join(PATH_TO_TMP, 'dbgcmds', f"cmds_trace_pcs_{identifier_str}")
-    # if not os.path.exists(path_to_debug_file):
-    Path(os.path.dirname(path_to_debug_file)).mkdir(parents=True, exist_ok=True)
-    spike_debug_commands = [
-        f"until pc 0 0x{startpc:x}"
-    ]
-    for _ in range(numinstrs):
-        spike_debug_commands.append('r 1')
-        # spike_debug_commands.append('pc 0')
-    if dump_final_reg_vals:
-        spike_debug_commands.append('r 1')
-        spike_debug_commands.append('reg 0')
-        if num_fp_regs:
-            for fp_reg_id in range(num_fp_regs):
-                spike_debug_commands.append(f"freg 0 {FPREG_ABINAMES[fp_reg_id]}")
-    spike_debug_commands.append('q\n')
-    spike_debug_commands_str = '\n'.join(spike_debug_commands)
-
-    with open(path_to_debug_file, 'w') as f:
-        f.write(spike_debug_commands_str)
-
+    assert dump_final_reg_vals is True
+    D = [
+        f"until pc 0 0x{startpc:x}",
+        f'r {numinstrs}',
+        'r 1',
+        'reg 0',
+        ] + [f'freg 0 {FPREG_ABINAMES[fp_reg_id]}'
+             for fp_reg_id in range(num_fp_regs)] + [
+        'q'
+        ]
+    path_to_debug_file = Path('cascade-data/dbgcmds', f"cmds_trace_pcs_{identifier_str}")
+    path_to_debug_file.parent.mkdir(parents=True, exist_ok=True)
+    path_to_debug_file.write_text('\n'.join(D) + '\n')
     return path_to_debug_file
 
 ###
@@ -137,6 +127,7 @@ def run_trace_regs_at_pc_locs(identifier_str: str, elfpath: str, rvflags: str, s
 
     # Second, run the Spike command
     spike_shell_command = f'spike -d --debug-cmd={path_to_debug_file} --isa={rvflags} --pc={startpc} {elfpath}'
+    print(f'\033[35m[DEBUG]\033[m $ {spike_shell_command}')
     spike_out = subprocess.run(spike_shell_command, shell=True, capture_output=True).stderr
     #print(spike_out.decode())
     #try:
@@ -199,26 +190,12 @@ def run_trace_regs_at_pc_locs(identifier_str: str, elfpath: str, rvflags: str, s
 def run_trace_all_pcs(identifier_str: str, elfpath: str, rvflags: str, numinstrs: int, startpc: int, dump_final_reg_vals: bool, num_fp_regs: int, has_fpdouble_support: bool, fuzzerstate_for_debug: list) -> list:
     # First, create the file that contains the commands, if it does not already exist
     path_to_debug_file = __gen_spike_dbgcmd_file_for_trace_pcs(identifier_str, numinstrs, startpc, dump_final_reg_vals, num_fp_regs)
+    #print(open(path_to_debug_file, 'r').read())
     
     # Second, run the Spike command
-    spike_shell_command = (
-        "spike",
-        "-d",
-        f"--debug-cmd={path_to_debug_file}",
-        f"--isa={rvflags}",
-        f"--pc={startpc}",
-        elfpath
-    )
-
-    spike_out = subprocess.run(spike_shell_command, capture_output=True).stderr
-    #try:
-    #    spike_out = subprocess.run(spike_shell_command, capture_output=True, timeout=get_spike_timeout_seconds()).stderr
-    #except Exception as e:
-    #    raise Exception(f"Spike timeout (B) for identifier str: {identifier_str}.\nCommand: {' '.join(spike_shell_command)}")
-
-    if not NO_REMOVE_TMPFILES:
-        os.remove(path_to_debug_file)
-        del path_to_debug_file
+    spike_shell_command = f'spike -d --debug-cmd={path_to_debug_file} --isa={rvflags} --pc={startpc} {elfpath}'
+    spike_out = subprocess.run(spike_shell_command, shell=True, capture_output=True).stderr
+    #print(spike_out.decode())
 
     addr_str_splitted = spike_out.split(b"\n")
     addr_str_splitted = list(filter(lambda s: b'exception' not in s and b'tval 0x' not in s, addr_str_splitted))
@@ -244,6 +221,11 @@ def run_trace_all_pcs(identifier_str: str, elfpath: str, rvflags: str, numinstrs
                 raise Exception('Parsing went wrong.')
             for fp_reg_id in range(num_fp_regs):
                 final_fpureg_vals.append(int(addr_str_splitted[fp_base_row_addr+fp_reg_id][18+8*int(not has_fpdouble_support):], 16))
+
+        #for v in ret: print(f'{hex(v)=}')
+        #for v in final_intreg_vals: print(f'{hex(v)=}')
+        #for v in final_fpureg_vals: print(f'{hex(v)=}')
+
         return ret, (final_intreg_vals, final_fpureg_vals)
     else:
         return ret
