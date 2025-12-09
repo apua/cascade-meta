@@ -119,9 +119,29 @@ class MemoryView:
         @param max_attempts:   max random attempts. After this number of unsuccessful attempts, the function will return None. Must be strictly positive.
         @return None if no corresponding address was found in max_attempts. Else, return the address
         """
-        # XXX: don't understand the usage of the address yet
-        # XXX: don't know what is "alignment_bits" used for
-        
+        #import inspect; print(f'{inspect.getouterframes(inspect.currentframe())[1][3]=}')
+        #import traceback; traceback.print_stack()
+
+        assert max_attempts > 0
+        #assert min_space >= 0
+        assert min_space > 0
+
+        left_bound  = max(left_bound, 0)
+        right_bound = min(right_bound, self.memsize)
+
+        assert left_bound >= 0, left_bound
+        assert right_bound <= self.memsize  # self.memsize is user given
+        assert left_bound < right_bound
+
+        # The bounds must be sufficiently spaced. In our use case, this is not at all a problem.
+        left = (left_bound + (1 << alignment_bits) - 1) >> alignment_bits
+        right = (right_bound - min_space) >> alignment_bits
+        assert left < right
+
+        #print(f'\033[36m[TRACE]\033[m {[tuple(map(hex, v)) for v in self.freepairs]=}')
+        #print(f'\033[36m[TRACE]\033[m {hex(left_bound)=} {hex(right_bound)=} {hex(min_space)=}')
+        #print(alignment_bits, min_space, left_bound, right_bound, max_attempts)
+
         def is_mem_range_free(start: int, end: int, freepairs: list):
             """
             @param start: first address of the range
@@ -134,44 +154,14 @@ class MemoryView:
                     return start >= curr_pair[0] and end <= curr_pair[1]
             return False
 
-        import inspect; print(f'{inspect.getouterframes(inspect.currentframe())[1][3]=}')
-        #import traceback; traceback.print_stack()
-
-        left_bound  = max(left_bound, 0)
-        right_bound = min(right_bound, self.memsize)
-        print(f'\033[36m[TRACE]\033[m {[tuple(map(hex, v)) for v in self.freepairs]=}')
-        print(f'\033[36m[TRACE]\033[m {hex(left_bound)=} {hex(right_bound)=} {hex(min_space)=}')
-        #print(alignment_bits, min_space, left_bound, right_bound, max_attempts)
-        if DO_ASSERT:
-            assert max_attempts > 0
-            assert min_space >= 0
-            assert left_bound >= 0
-            assert right_bound <= self.memsize  # self.memsize is user given
-            assert left_bound < right_bound
-            # The bounds must be sufficiently spaced. In our use case, this is not at all a problem.
-            assert (
-                (left_bound+(1 << alignment_bits)-1) >> alignment_bits) < (
-                (right_bound-min_space) >> alignment_bits
-                )
-
         for attempts in range(max_attempts):
-            picked_addr = random.randrange(
-                (left_bound+(1 << alignment_bits)-1) >> alignment_bits,
-                ((right_bound-min_space) >> alignment_bits),
-                ) << alignment_bits
+            picked_addr = random.randrange(left, right) << alignment_bits
             #print(f'\033[36m[TRACE]\033[m {attempts=} {hex(picked_addr)=}')
-            #print(f'{((left_bound + (1 << alignment_bits) - 1) >> alignment_bits)=}')
-            #print(f'{((right_bound - min_space) >> alignment_bits)=}')
-            #print(f'{(picked_addr >> alignment_bits)=}')
-            #print(f'{hex(picked_addr)=}')
 
             # is_mem_range_free returns False if it goes beyond the memory boundaries.
-            if min_space == 0 or is_mem_range_free(picked_addr, picked_addr+min_space, self.freepairs):
-                if DO_ASSERT:
-                    assert picked_addr >= 0
-                    assert picked_addr + min_space <= self.memsize
-                    assert picked_addr % (1 << alignment_bits) == 0
-                print(f'\033[36m[TRACE]\033[m {hex(picked_addr)=} {picked_addr=}')
+            #if min_space == 0 or is_mem_range_free(picked_addr, picked_addr+min_space, self.freepairs):
+            if is_mem_range_free(picked_addr, picked_addr+min_space, self.freepairs):
+                assert picked_addr >= 0 and picked_addr + min_space <= self.memsize and picked_addr % (1 << alignment_bits) == 0
                 return picked_addr
         return None
 

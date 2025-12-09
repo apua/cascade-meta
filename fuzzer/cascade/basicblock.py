@@ -31,32 +31,59 @@ import random
 def gen_basicblocks(fuzzerstate):
     print('\033[33m[INFO]\033[m reset')
     fuzzerstate.reset()
+    assert not hasattr(fuzzerstate, 'curr_bb_start_addr')
+    assert fuzzerstate.memview.freepairs == [(0x0, 0x10000)]
+    assert len(fuzzerstate.instr_objs_seq) == 0
+
     print('\033[33m[INFO]\033[m gen_initial_basic_block')
     gen_initial_basic_block(fuzzerstate, SPIKE_STARTADDR)
-    print('\033[33m[INFO]\033[m save_reg_state')
-    fuzzerstate.save_reg_state()
-    # Sanity checks
-    assert fuzzerstate.get_num_fuzzing_instructions_sofar() == 0, "We should have generated only one basic block so far."
-    assert fuzzerstate.has_reached_max_instr_num() == False, "We should not have reached the max number of instructions yet."
+    assert fuzzerstate.curr_bb_start_addr == 0x0
+    assert fuzzerstate.initial_reg_data_addr == 0x120
+    assert fuzzerstate.initial_block_data_start == 0x120
+    assert fuzzerstate.initial_block_data_end == 0x220
+    assert fuzzerstate.memview.freepairs == [(0x224, 0x10000)]
+    assert len(fuzzerstate.instr_objs_seq) == 1
+    assert fuzzerstate.next_bb_addr == 0x7f30
+    assert len(fuzzerstate.saved_reg_states) == 0
 
-    print(f'\033[31m[INFO]\033[m {[tuple(map(hex, v)) for v in fuzzerstate.memview.freepairs]=}')
-    print('\033[33m[INFO]\033[m Reserve space for the second basic block (whose address is already fixed).')
-    fuzzerstate.memview.alloc_mem_range(fuzzerstate.next_bb_addr, BASIC_BLOCK_MIN_SPACE)
-    print(f'\033[31m[INFO]\033[m {[tuple(map(hex, v)) for v in fuzzerstate.memview.freepairs]=}')
+    fuzzerstate.save_reg_state()
+    assert len(fuzzerstate.saved_reg_states) == 1
+
+    fuzzerstate.memview.alloc_mem_range(fuzzerstate.next_bb_addr, 0x18)  # BASIC_BLOCK_MIN_SPACE == 0x18
+    assert fuzzerstate.memview.freepairs == [(0x224, 0x7f30), (0x7f48, 0x10000)]
 
     print('\033[33m[INFO]\033[m Generate the random data block')
     gen_random_data_block(fuzzerstate)
-    print(f'\033[31m[INFO]\033[m {[tuple(map(hex, v)) for v in fuzzerstate.memview.freepairs]=}')
+    assert fuzzerstate.random_data_block_start_addr == 0xd794
+    assert fuzzerstate.random_data_block_end_addr == 0xd7b0
+    assert fuzzerstate.memview.freepairs == [(0x224, 0x7f30), (0x7f48, 0xd794), (0xd7b0, 0x10000)]
 
-    # Reserve space for the final basic block.
+    print('\033[33m[INFO]\033[m final basic block')
     alloc_final_basic_block(fuzzerstate)
-    # Reserve space for the context setter basic block, but do not instantiate 
-    # it because we do not know yet what it will look like until we have a concrete 
+    assert fuzzerstate.final_bb_base_addr == 0x2d7c
+    assert fuzzerstate.memview.freepairs == [(0x224, 0x2d7c), (0x32ec, 0x7f30), (0x7f48, 0xd794), (0xd7b0, 0x10000)]
+
+    # Reserve space for the context setter basic block, but do not instantiate
+    # it because we do not know yet what it will look like until we have a concrete
     # context to restore. Until then, we just know arbitrary bounds.
     assert alloc_context_saver_bb(fuzzerstate) is True
+    assert fuzzerstate.ctxsv_size_upperbound == 0xedc  # XXX: comes from `cascade.contextreplay.get_context_setter_max_size`
+    assert fuzzerstate.ctxsv_bb_base_addr == 0x5674
+    print(f'{hex(fuzzerstate.ctxsv_size_upperbound)=}')
+    print(f'{hex(fuzzerstate.ctxsv_bb_base_addr)=}')
+    5/0
 
     # Finally, generate the store locations. This can be swapped with generating the final basic block.
     fuzzerstate.memstorestate.init_store_locations(fuzzerstate.num_store_locations, fuzzerstate.memview)
+
+    assert fuzzerstate.curr_bb_start_addr == 0x0
+    assert fuzzerstate.get_num_fuzzing_instructions_sofar() == 0, "We should have generated only one basic block so far."
+    assert fuzzerstate.has_reached_max_instr_num() == False, "We should not have reached the max number of instructions yet."
+    assert fuzzerstate.nmax_instructions is None
+    assert len(fuzzerstate.instr_objs_seq) == 1
+    assert fuzzerstate.next_bb_addr == 0x7f30  # XXX: no longer used?
+
+    ########################################
 
     while True:
         print('==========>', 'nested while')
@@ -556,3 +583,58 @@ def gen_memop_addrs(fuzzerstate):
                 memop_addr = pick_memop_addr(fuzzerstate, is_instrstr_load(bb_instr.instr_str), get_alignment_bits(bb_instr.instr_str))
                 ret.append(memop_addr)
     return ret
+
+
+########################################
+
+
+def gen_random_data_block(fuzzerstate):
+    """
+    -> fuzzerstate.memview.freepairs
+    -> fuzzerstate.random_block_content4by4bytes
+    -> fuzzerstate.random_data_block_start_addr
+    -> fuzzerstate.random_data_block_end_addr
+    """
+    #lenbytes = random.randrange(RANDOM_DATA_BLOCK_MIN_SIZE_BYTES, RANDOM_DATA_BLOCK_MAX_SIZE_BYTES)
+    lenbytes = random.randrange(12, 64)
+    start_address = fuzzerstate.memview.gen_random_free_addr(2, lenbytes, 0, fuzzerstate.memsize)
+    assert start_address is not None, "Maybe you should create the random data block earlier in the creation of the test case."
+    fuzzerstate.memview.alloc_mem_range(start_address, lenbytes)  # update `fuzzerstate.memview.freepairs`
+
+    # XXX: without the random data, somehow `instr_objs_seq` increases by 1
+    # XXX: unknown the usage while the address and number are independent from the number of basic blocks generated
+
+    # Generate the random data
+    assert start_address == 0xd794
+    assert start_address + lenbytes == 0xd7b0
+    assert lenbytes == 28
+    assert lenbytes // 4 == 7
+    fuzzerstate.random_block_content4by4bytes.extend(
+            random.randrange(0, 2**32)  # 4 bytes 32-bits
+            for _ in range(lenbytes // 4))
+
+    fuzzerstate.random_data_block_start_addr = start_address
+    fuzzerstate.random_data_block_end_addr = start_address + lenbytes
+    #print(f'{hex(fuzzerstate.random_data_block_start_addr)=}')
+    #print(f'{hex(fuzzerstate.random_data_block_end_addr)=}')
+
+
+def alloc_final_basic_block(fuzzerstate):
+    """
+    -> fuzzerstate.memview.freepairs
+    -> fuzzerstate.final_bb_base_addr
+    """
+    from params.fuzzparams import MAX_NUM_PICKABLE_REGS, MAX_NUM_PICKABLE_FLOATING_REGS
+
+    assert MAX_NUM_PICKABLE_REGS == 25
+    assert MAX_NUM_PICKABLE_FLOATING_REGS == 14
+
+    # XXX: actually, final block will handle integer registers only, and addtional 3 + 5 instructions
+    finalblock_size = (10 + 2 * MAX_NUM_PICKABLE_REGS + 2 * MAX_NUM_PICKABLE_FLOATING_REGS - 1) * 4  # XXX: strange formula
+    lenbytes = finalblock_size * 4  # XXX: seems accidentally muliplied by 4
+    start_address = fuzzerstate.memview.gen_random_free_addr(2, lenbytes, 0, fuzzerstate.memsize)
+    assert start_address is not None, f"Maybe you should create the final basic block earlier in the creation of the test case."
+    fuzzerstate.memview.alloc_mem_range(start_address, lenbytes)
+
+    fuzzerstate.final_bb_base_addr = start_address
+    #print(f'{hex(fuzzerstate.final_bb_base_addr)=}')

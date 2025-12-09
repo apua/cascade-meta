@@ -14,12 +14,9 @@ os.environ['CASCADE_DESIGN_PROCESSING_ROOT'] = str(Path(__file__, '../design-pro
 
 
 def dump_curr_bytearray(fuzzerstate, *, filename):
-    from collections import defaultdict
-
     assert len(fuzzerstate.instr_objs_seq) == len(fuzzerstate.bb_start_addr_seq)
-    print(f'{len(fuzzerstate.instr_objs_seq)=}')
-    print(f'{len(fuzzerstate.bb_start_addr_seq)=}')
 
+    from collections import defaultdict
     addr_instrs = defaultdict(bytes)
     for bb_start_addr, bb_instrs in zip(fuzzerstate.bb_start_addr_seq, fuzzerstate.instr_objs_seq):
         for instr_id_in_bb, instr_obj in enumerate(bb_instrs):
@@ -97,7 +94,7 @@ def to_sections(fuzzerstate) -> dict:
     # XXX: The random data block at the end?
     yield (fuzzerstate.random_data_block_start_addr, (alignment := 4)), fuzzerstate.random_block_content4by4bytes
 
-    # XXX: wtf context
+    # XXX: Maybe it's used for reproducing?
     assert fuzzerstate.ctxsv_bb == []
 
 
