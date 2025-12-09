@@ -21,17 +21,22 @@ class MemStoreState:
 
     # Should be called once the first basic block is already allocated
     def init_store_locations(self, num_store_locations: int, memview: MemoryView):
-        print(f'{num_store_locations=}')
+        assert ALIGNMENT_BITS_MAX == 3
         for store_location_id in range(num_store_locations):
             next_store_location = memview.gen_random_free_addr(ALIGNMENT_BITS_MAX, 1 << ALIGNMENT_BITS_MAX, 0, memview.memsize)
-            if next_store_location is None:
-                raise ValueError(f"Could not find a next store location. You may want to increase the memory size (for the moment: {memview.memsize:,} B)")
+            if next_store_location is None: raise ValueError(f"Could not find a next store location. You may want to increase the memory size (for the moment: {memview.memsize:,} B)")
             memview.alloc_mem_range(next_store_location, (1 << ALIGNMENT_BITS_MAX))
+
+            print(f'{store_location_id=} {hex(next_store_location)=}')
+            #print(f'{len(memview.freepairs)=}')
+            #print(f'{[tuple(map(hex, v)) for v in memview.freepairs]=}')
+
             self.store_locations.append(next_store_location)
             if DO_ASSERT:
                 assert next_store_location >= 0
                 assert next_store_location + (1 << ALIGNMENT_BITS_MAX) <= memview.memsize, ""
                 assert next_store_location % (1 << ALIGNMENT_BITS_MAX) == 0
+
         self.location_weights = np.ones(num_store_locations)
         # Remember the last store operation address
         self.last_store_addr = self.store_locations[0]

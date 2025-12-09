@@ -34,6 +34,7 @@ def gen_basicblocks(fuzzerstate):
     assert not hasattr(fuzzerstate, 'curr_bb_start_addr')
     assert fuzzerstate.memview.freepairs == [(0x0, 0x10000)]
     assert len(fuzzerstate.instr_objs_seq) == 0
+    assert fuzzerstate.num_store_locations == 23
 
     print('\033[33m[INFO]\033[m gen_initial_basic_block')
     gen_initial_basic_block(fuzzerstate, SPIKE_STARTADDR)
@@ -69,10 +70,10 @@ def gen_basicblocks(fuzzerstate):
     assert alloc_context_saver_bb(fuzzerstate) is True
     assert fuzzerstate.ctxsv_size_upperbound == 0xedc  # XXX: comes from `cascade.contextreplay.get_context_setter_max_size`
     assert fuzzerstate.ctxsv_bb_base_addr == 0x5674
-    print(f'{hex(fuzzerstate.ctxsv_size_upperbound)=}')
-    print(f'{hex(fuzzerstate.ctxsv_bb_base_addr)=}')
-    5/0
+    #print(f'{hex(fuzzerstate.ctxsv_size_upperbound)=}')
+    #print(f'{hex(fuzzerstate.ctxsv_bb_base_addr)=}')
 
+    # XXX: unknown usage
     # Finally, generate the store locations. This can be swapped with generating the final basic block.
     fuzzerstate.memstorestate.init_store_locations(fuzzerstate.num_store_locations, fuzzerstate.memview)
 
@@ -85,6 +86,7 @@ def gen_basicblocks(fuzzerstate):
 
     ########################################
 
+    5/0
     while True:
         print('==========>', 'nested while')
         bb_gen_success = gen_basicblock(fuzzerstate)
