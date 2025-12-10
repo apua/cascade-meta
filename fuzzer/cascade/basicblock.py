@@ -86,7 +86,8 @@ def gen_basicblocks(fuzzerstate):
 
     ########################################
 
-    5/0
+    assert fuzzerstate.is_fpu_activated is True, f'{fuzzerstate.is_fpu_activated=}'
+
     while True:
         print('==========>', 'nested while')
         bb_gen_success = gen_basicblock(fuzzerstate)
@@ -112,13 +113,19 @@ def gen_basicblocks(fuzzerstate):
         # print('Mem occupation:', fuzzerstate.memview.get_allocated_ratio(), end='\r')
         print('==========>', 'nested while bottom')
 
+    assert fuzzerstate.is_fpu_activated is False, f'{fuzzerstate.is_fpu_activated=}'
+
+    ########################################
+
     # Find a suitable last bb and connect it with the final block
     pop_success = pop_last_bbs_to_connect_with_final_block(fuzzerstate)
     assert pop_success is True
     print('==========>', 'break')
 
     # Generate the content of the final basic block, now that we know the final privilege level.
+    assert fuzzerstate.final_bb == []
     fuzzerstate.final_bb = finalblock(fuzzerstate, fuzzerstate.design_name)
+    assert len(fuzzerstate.final_bb) == 85
 
     # Forbid loads from addresses where instructions change between spike resolution and RTL sim.
     blacklist_changing_instructions(fuzzerstate)
@@ -631,9 +638,11 @@ def alloc_final_basic_block(fuzzerstate):
     assert MAX_NUM_PICKABLE_REGS == 25
     assert MAX_NUM_PICKABLE_FLOATING_REGS == 14
 
-    # XXX: actually, final block will handle integer registers only, and addtional 3 + 5 instructions
+    # XXX: additional 3 + 1 + 5 = 9 instructions
+    #      moreover, it seems accidentally multiplied by 4
     finalblock_size = (10 + 2 * MAX_NUM_PICKABLE_REGS + 2 * MAX_NUM_PICKABLE_FLOATING_REGS - 1) * 4  # XXX: strange formula
-    lenbytes = finalblock_size * 4  # XXX: seems accidentally muliplied by 4
+    lenbytes = finalblock_size * 4
+    print(f'finalblock_size={hex(finalblock_size)} lenbytes={hex(lenbytes)}')
     start_address = fuzzerstate.memview.gen_random_free_addr(2, lenbytes, 0, fuzzerstate.memsize)
     assert start_address is not None, f"Maybe you should create the final basic block earlier in the creation of the test case."
     fuzzerstate.memview.alloc_mem_range(start_address, lenbytes)
