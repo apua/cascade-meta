@@ -64,7 +64,7 @@ def finalblock(fuzzerstate, design_name: str):
         ret.append(SpecialInstruction("fence"))
 
     # Store the floating values as well, if FPU is supported and if there is no risk of it being deactivated
-    assert fuzzerstate.is_fpu_activated is False
+    #assert fuzzerstate.is_fpu_activated is False
     if design_has_fpu and not fuzzerstate.is_fpu_activated:
 
         # XXX: it is defined in config

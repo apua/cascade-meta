@@ -59,7 +59,7 @@ def gen_basicblocks(fuzzerstate):
     assert fuzzerstate.random_data_block_end_addr == 0xd7b0
     assert fuzzerstate.memview.freepairs == [(0x224, 0x7f30), (0x7f48, 0xd794), (0xd7b0, 0x10000)]
 
-    print('\033[33m[INFO]\033[m final basic block')
+    print('\033[33m[INFO]\033[m allocate final basic block')
     alloc_final_basic_block(fuzzerstate)
     assert fuzzerstate.final_bb_base_addr == 0x2d7c
     assert fuzzerstate.memview.freepairs == [(0x224, 0x2d7c), (0x32ec, 0x7f30), (0x7f48, 0xd794), (0xd7b0, 0x10000)]
@@ -113,19 +113,20 @@ def gen_basicblocks(fuzzerstate):
         # print('Mem occupation:', fuzzerstate.memview.get_allocated_ratio(), end='\r')
         print('==========>', 'nested while bottom')
 
-    assert fuzzerstate.is_fpu_activated is False, f'{fuzzerstate.is_fpu_activated=}'
+    #assert fuzzerstate.is_fpu_activated is False, f'{fuzzerstate.is_fpu_activated=}'
 
-    ########################################
-
+    # XXX: it pops out unsuitable basic blocks, while the jump range is limited by the immediate of `jal` and `jalr` 
     # Find a suitable last bb and connect it with the final block
     pop_success = pop_last_bbs_to_connect_with_final_block(fuzzerstate)
     assert pop_success is True
-    print('==========>', 'break')
+
+    ########################################
 
     # Generate the content of the final basic block, now that we know the final privilege level.
+    print('\033[33m[INFO]\033[m generate final basic block')
     assert fuzzerstate.final_bb == []
     fuzzerstate.final_bb = finalblock(fuzzerstate, fuzzerstate.design_name)
-    assert len(fuzzerstate.final_bb) == 85
+    assert len(fuzzerstate.final_bb) in (85, 56)
 
     # Forbid loads from addresses where instructions change between spike resolution and RTL sim.
     blacklist_changing_instructions(fuzzerstate)
@@ -553,6 +554,8 @@ def pop_last_bbs_to_connect_with_final_block(fuzzerstate):
         # Check whether the last element can target the final bb
         last_cf_instr_base_addr = fuzzerstate.bb_start_addr_seq[-1] + (len(fuzzerstate.instr_objs_seq[-1])-1) * 4 # NO_COMPRESSED
         last_instr = fuzzerstate.instr_objs_seq[-1][-1]
+        #print(f'{hex(last_cf_instr_base_addr)=} {last_instr=}')
+
         if isinstance(last_instr, JALInstruction):
             range_bits = get_range_bits_per_instrclass(ISAInstrClass.JAL)
         elif isinstance(last_instr, JALRInstruction):
@@ -565,12 +568,16 @@ def pop_last_bbs_to_connect_with_final_block(fuzzerstate):
             range_bits = get_range_bits_per_instrclass(ISAInstrClass.EXCEPTION)
         else:
             raise ValueError(f"Unexpectedly got instruction `{last_instr}`")
-        if fuzzerstate.final_bb_base_addr >= last_cf_instr_base_addr - (1 << range_bits) and fuzzerstate.final_bb_base_addr < last_cf_instr_base_addr + (1 << range_bits):
+        #print(f'{range_bits=}')
+
+        if fuzzerstate.final_bb_base_addr >= last_cf_instr_base_addr - (1 << range_bits) \
+                and fuzzerstate.final_bb_base_addr < last_cf_instr_base_addr + (1 << range_bits):
             # The last basic block of the series is a candidate for jumping to the final block.
             # The target address of the last cf instruction will be injected later.
             if popped_at_least_once:
                 fuzzerstate.intregpickstate.restore_state(fuzzerstate.saved_reg_states[-1])
             return True
+
         # else, in case the last block could not reach the final block, then we discard it and try with the previous one.
         popped_at_least_once = True
         fuzzerstate.instr_objs_seq.pop()

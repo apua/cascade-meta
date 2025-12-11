@@ -79,6 +79,7 @@ def to_sections(fuzzerstate) -> dict:
         return instruction.gen_bytecode_int(is_spike_resolution=False)
 
     # The first and generated basic blocks
+    print(f'{list(map(hex, fuzzerstate.bb_start_addr_seq))=}')
     assert len(fuzzerstate.bb_start_addr_seq) == max(fuzzerstate.nmax_bbs, 1)
     assert len(fuzzerstate.instr_objs_seq) == max(fuzzerstate.nmax_bbs, 1)
     for address, instructions in zip(fuzzerstate.bb_start_addr_seq, fuzzerstate.instr_objs_seq):
