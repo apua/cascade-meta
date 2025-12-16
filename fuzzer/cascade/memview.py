@@ -38,12 +38,10 @@ class MemoryView:
     def get_available_contig_space(self, addr: int):
         # Find the pair to which `start` belongs, and then check that `end` is still in the same pair.
         for curr_pair in self.freepairs:
-            if addr < curr_pair[1]:
-                if (addr >= curr_pair[0]):
-                    return curr_pair[1] - addr
-                else:
-                    return 0
-        return 0
+            if addr in range(*curr_pair):
+                return curr_pair[1] - addr
+        else:
+            return 0
 
     def alloc_mem_range(self, start: int, alloc_size: int):
         """

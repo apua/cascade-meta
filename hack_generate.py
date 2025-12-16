@@ -134,7 +134,7 @@ class FuzzerState(FuzzerStateBase):
     nmax_bbs = 51
     #nmax_bbs = 0
     #nmax_bbs = None
-    nmax_instructions = None
+    nmax_instructions = None  # XXX: looks unused
     memsize = 881540  # 0xd7384
     memsize = 0x1000
     memsize = 0x10000

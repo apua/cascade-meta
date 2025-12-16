@@ -174,7 +174,11 @@ def _filter_sensitive_instr_weights(fuzzerstate, filtered_weights: list):
 # Do NOT @cache this function, as it is a random function.
 def gen_next_isainstrclass(fuzzerstate) -> ISAInstrClass:
     filtered_weights = _get_isainstrclass_filtered_weights(fuzzerstate)
+
+    # XXX: inline modify weights
     _filter_regfsm_weight(fuzzerstate, filtered_weights)
     _filter_sensitive_instr_weights(fuzzerstate, filtered_weights)
 
-    return _gen_next_isainstrclass_from_weights(filtered_weights)
+    cls = _gen_next_isainstrclass_from_weights(filtered_weights)
+
+    return cls
