@@ -150,16 +150,7 @@ class FuzzerState:
     
     # @brief stores the current states of registers
     def save_reg_state(self):
-        #print(f'{self.saved_reg_states=}')
         self.saved_reg_states.append(self.intregpickstate.save_curr_state())
-        #print(f'{len(self.saved_reg_states)=}')
-        #print(f'{len(self.saved_reg_states[-1])=}')
-        #print(f'{len(self.saved_reg_states[-1][0])=}')  # array full floating
-        #print(f'{len(self.saved_reg_states[-1][1])=}')  # states, free or not
-        #print(f'{len(self.saved_reg_states[-1][2])=}')  # array with `nan` and integer
-        #print(f'{len(self.saved_reg_states[-1][3])=}')  # always [ [[None, None], [None, None]] ] * N
-        #print(f'{sum(k != 1 for k in self.saved_reg_states[-1][1])=}')
-        assert all(v == [[None, None], [None, None]] for v in self.saved_reg_states[-1][3])
 
     # @brief initializes a new basic block
     def init_new_bb(self):

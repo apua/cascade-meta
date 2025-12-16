@@ -39,6 +39,8 @@ generate initial basic block
         `fuzzerstate.instr_objs_seq`
         [ [ ... ](length 72) ]
 
+        The last instruction is `jal`, which jumps to the next basic block.
+
     register data:
         `fuzzerstate.initial_reg_data_content`
         [ ... ](length 32 = 24 + 9 - 1)
@@ -47,3 +49,16 @@ generate initial basic block
         `fuzzerstate.next_bb_addr`
         random address in [0x224, 0x100000) regardless memory size
         0x7f30
+
+    backup weight, state, and producer ID (?) of integer registers
+        `fuzzerstate.save_reg_state`
+
+        weight
+            0.2 for x15
+            [0.8/23, 0.8/23, ...,  0.8/23, 0.2, 0.8/23, ..., 0.8/23]
+
+        state
+            FREE for all
+
+        producer ID (?)
+            NaN for all

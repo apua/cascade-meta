@@ -13,6 +13,12 @@ import numpy as np
 import random
 
 class IntRegPickState:
+    #def __getattribute__(self, name):
+    #    #import traceback; traceback.print_stack()
+    #    return_value = super().__getattribute__(name)
+    #    #print(f'.......... {name=} {return_value=}')
+    #    return return_value
+
     # no_dependency_bias: only to evaluate the impact of the dependency bias
     def __init__(self, num_pickable_regs: int, no_dependency_bias: bool):
         self.num_pickable_regs = num_pickable_regs
@@ -22,15 +28,14 @@ class IntRegPickState:
         self.__reg_states   = [IntRegIndivState.FREE for _ in range(self.num_pickable_regs)]
         # Permits matching sensitive instructions with the producers
         self.__last_producer_ids = np.zeros(self.num_pickable_regs)
+        self.__last_producer_ids.fill(None)  # To avoid luckily having offset 0
         # For each register, a pair of (basic block id, instr in basic block) that produced the register
         self.__last_producer_coords = [[[None, None], [None, None]] for _ in range(self.num_pickable_regs)]
-        if DO_ASSERT:
-            self.__last_producer_ids.fill(None) # To avoid luckily having offset 0
         # Mnemonic list for speeding up searches
         self.__regs_in_state_onehot = {
-                curr_indiv_state: np.ones(self.num_pickable_regs, np.int8)
-                if (curr_indiv_state == IntRegIndivState.FREE)
-                else np.zeros(self.num_pickable_regs, np.int8)
+                curr_indiv_state:
+                    np.ones(self.num_pickable_regs, np.int8) if (curr_indiv_state == IntRegIndivState.FREE) else
+                    np.zeros(self.num_pickable_regs, np.int8)
                 for curr_indiv_state in IntRegIndivState}
         # Will ignore x0 if line below is uncommented. This is a design decision.
         # self.__reg_weights[0] = 0
@@ -46,16 +51,23 @@ class IntRegPickState:
     def get_free_or_relocused_regs_onehot(self): # WARNING: Use those only for outputs, not for inputs.
         ret = [int(self.__reg_states[reg_id] == IntRegIndivState.FREE) for reg_id in range(self.num_pickable_regs)]
         if DO_ASSERT:
-            assert sum(ret) >= NUM_MIN_FREE_INTREGS
+            assert sum(ret) >= NUM_MIN_FREE_INTREGS  # ≥ 2
         return ret
 
     # Weights after deducting the forbidden registers
     def get_effective_weights(self, authorized_regs_onehot):
         if DO_ASSERT:
             assert np.any(authorized_regs_onehot)
+
+        assert self.nodependencybias is False
         if self.nodependencybias:
             return authorized_regs_onehot
-        return self.__reg_weights * authorized_regs_onehot
+
+        return_value = self.__reg_weights * authorized_regs_onehot
+        #print(f'{self.__reg_weights=}')
+        #print(f'{authorized_regs_onehot=}')
+        #print(f'{return_value=}')
+        return return_value
 
     # Returns a free inputreg.
     def pick_int_inputreg(self, authorize_sideeffects: bool = True):
@@ -82,12 +94,19 @@ class IntRegPickState:
         authorized_regs_onehot = self.get_free_or_relocused_regs_onehot() # We could use any, but let's not waste the generated ones
         if DO_ASSERT:
             assert np.max(authorized_regs_onehot) == 1, "Unexpectedly, some register was registered in two states at a time."
-        rd = random.choices(range(self.num_pickable_regs), self.get_effective_weights(authorized_regs_onehot))[0]
+
+        # XXX: filter weights where the register is FREE
+        filtered_weights = self.get_effective_weights(authorized_regs_onehot)
+        rd = random.choices(range(self.num_pickable_regs), filtered_weights)[0]
+
+        assert authorize_sideeffects is True
         if authorize_sideeffects:
+            # XXX: update `self.__reg_weights`
             self._update_probaweights(rd)
             if rd:
                 self.set_regstate(rd, IntRegIndivState.FREE)
         return rd
+
     def pick_int_outputreg_nonzero(self, authorize_sideeffects: bool = True):
         authorized_regs_onehot = self.get_free_or_relocused_regs_onehot() # We could use any, but let's not waste the generated ones
         was_zero_authorized = authorized_regs_onehot[0]
@@ -101,21 +120,27 @@ class IntRegPickState:
                 self.set_regstate(rd, IntRegIndivState.FREE)
         authorized_regs_onehot[0] = was_zero_authorized
         return rd
+
     # @param outreg the produced register.
     def _update_probaweights(self, outreg: int):
         if DO_ASSERT:
-            assert 0 <= outreg
-            assert outreg < self.num_pickable_regs
+            assert 0 <= outreg < self.num_pickable_regs
             assert math.isclose(sum(self.__reg_weights), 1, abs_tol=0.001), f"{sum(self.__reg_weights)} {str(self.__reg_weights)}"
+
         # # Ignore x0
         # if outreg == 0:
         #     return
         # The lines here below are a heuristic algorithm to favor more recently produced registers
         sum_of_others = np.sum(self.__reg_weights) - self.__reg_weights[outreg]
+        #print(f'{outreg=}')
+        #print(f'{self.__reg_weights=}')
+        #print(f'{sum_of_others=}')
         for reg_id in range(self.num_pickable_regs):
             # We also do it (for performance) for outreg and we overwrite it later
             self.__reg_weights[reg_id] = self.__reg_weights[reg_id] * (1-REGPICK_PROTUBERANCE_RATIO) / sum_of_others
-        self.__reg_weights[outreg] = REGPICK_PROTUBERANCE_RATIO
+        self.__reg_weights[outreg] = REGPICK_PROTUBERANCE_RATIO  # 0.2
+        #print(f'{self.__reg_weights=}')
+
     # Getter and setter for register states
     def get_regstate(self, reg_id: int):
         if DO_ASSERT:
@@ -143,9 +168,11 @@ class IntRegPickState:
                         assert self.__regs_in_state_onehot[s][reg_id] == int(s == self.__reg_states[reg_id])
                 else:
                     assert self.__regs_in_state_onehot[self.__reg_states[reg_id]][reg_id]
+
         self.__regs_in_state_onehot[self.__reg_states[reg_id]][reg_id] = 0
         self.__regs_in_state_onehot[new_state][reg_id] = 1
         self.__reg_states[reg_id] = new_state
+
     # Brings iteratively a register to the requested state, as fast as possible
     # @return nothing, but guarantees that a register will be in the target state
     def bring_some_reg_to_state(self, req_state: int, fuzzerstate):
@@ -172,6 +199,7 @@ class IntRegPickState:
 
     # Save at the end of basic blocks, and restore if popping basic blocks from the end.
     def save_curr_state(self):
+        assert all(m == [[None, None], [None, None]] for m in self.__last_producer_coords)
         return copy(self.__reg_weights), copy(self.__reg_states), copy(self.__last_producer_ids), deepcopy(self.__last_producer_coords)
 
     # Rarely called.

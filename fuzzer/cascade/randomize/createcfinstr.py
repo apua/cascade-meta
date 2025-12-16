@@ -93,10 +93,11 @@ def _create_BranchInstruction(instr_str: str, fuzzerstate, curr_addr: int, iscom
 
 def _create_JALInstruction(instr_str: str, fuzzerstate, curr_addr: int, iscompressed: bool):
     rd = fuzzerstate.intregpickstate.pick_int_outputreg()
-    imm = fuzzerstate.next_bb_addr-curr_addr
+    imm = fuzzerstate.next_bb_addr - curr_addr
     if rd > 0:
-        fuzzerstate.intregpickstate.set_regstate(rd, IntRegIndivState.FREE)
+        fuzzerstate.intregpickstate.set_regstate(rd, IntRegIndivState.FREE)  # XXX: duplicated actually
     return JALInstruction(instr_str, rd, imm, iscompressed)
+
 def _create_JALRInstruction(instr_str: str, fuzzerstate, iscompressed: bool):
     rs1 = fuzzerstate.intregpickstate.pick_int_reg_in_state(IntRegIndivState.CONSUMED)
     rd = fuzzerstate.intregpickstate.pick_int_outputreg()
