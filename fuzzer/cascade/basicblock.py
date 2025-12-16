@@ -35,6 +35,8 @@ def gen_basicblocks(fuzzerstate):
     assert fuzzerstate.memview.freepairs == [(0x0, 0x10000)]
     assert len(fuzzerstate.instr_objs_seq) == 0
     assert fuzzerstate.num_store_locations == 23
+    assert fuzzerstate.num_pickable_regs == 24
+    assert fuzzerstate.num_pickable_floating_regs == 9
 
     print('\033[33m[INFO]\033[m gen_initial_basic_block')
     gen_initial_basic_block(fuzzerstate, SPIKE_STARTADDR)

@@ -139,7 +139,7 @@ def gen_initial_basic_block(fuzzerstate, offset_addr: int, csr_init_rounding_mod
 
     # Set the rdep mask to the correct value
 
-    print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=}')
+    ###print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=}')
 
     if fuzzerstate.is_design_64bit:
         fuzzerstate.add_instruction(RegImmInstruction("addi", RDEP_MASK_REGISTER_ID, 0, -1, fuzzerstate.is_design_64bit))
@@ -154,7 +154,7 @@ def gen_initial_basic_block(fuzzerstate, offset_addr: int, csr_init_rounding_mod
     fuzzerstate.add_instruction(R12DInstruction("add", fuzzerstate.num_pickable_regs-1, 0, RELOCATOR_REGISTER_ID))
     curr_addr += 4
 
-    print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=}')
+    ###print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=}')
     #from pprint import pprint as p; p(fuzzerstate.instr_objs_seq[-1])
 
     ###################
@@ -168,11 +168,11 @@ def gen_initial_basic_block(fuzzerstate, offset_addr: int, csr_init_rounding_mod
         bytes_until_random_vals = 8 + 4*(fuzzerstate.num_pickable_regs+fuzzerstate.num_pickable_floating_regs-1) + int(expect_padding) * 4 # NO_COMPRESSED
 
         #print(f'{curr_addr=}')
-        print(f'{fuzzerstate.num_pickable_regs=} in [4, 25]')
-        print(f'{fuzzerstate.num_pickable_floating_regs=} in [1, min(14, 24)]')
+        ###print(f'{fuzzerstate.num_pickable_regs=} in [4, 25]')
+        ###print(f'{fuzzerstate.num_pickable_floating_regs=} in [1, min(14, 24)]')
         #print(f'{(4*(fuzzerstate.num_pickable_regs+fuzzerstate.num_pickable_floating_regs-1))=}')
         #print(f'{expect_padding=}')
-        print(f'{bytes_until_random_vals=}')
+        ###print(f'{hex(bytes_until_random_vals)=}')
         _total_amount_registers = fuzzerstate.num_pickable_regs + fuzzerstate.num_pickable_floating_regs - 1
         _next_address = curr_addr + 4 + _total_amount_registers * 4
         _padding = 4 if _next_address % 8 else 8
@@ -183,7 +183,7 @@ def gen_initial_basic_block(fuzzerstate, offset_addr: int, csr_init_rounding_mod
         bytes_until_random_vals = 8 + 4*(fuzzerstate.num_pickable_regs-1) + int(expect_padding) * 4 # NO_COMPRESSED
 
     bytes_until_random_vals_base_for_debug = curr_addr
-    print(f'{hex(bytes_until_random_vals_base_for_debug)=}')
+    ###print(f'{hex(bytes_until_random_vals_base_for_debug)=}')
     fuzzerstate.add_instruction(RegImmInstruction(
         "addi",
         fuzzerstate.num_pickable_regs-1,
@@ -192,7 +192,7 @@ def gen_initial_basic_block(fuzzerstate, offset_addr: int, csr_init_rounding_mod
         fuzzerstate.is_design_64bit))
     curr_addr += 4
 
-    print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=}')
+    ###print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=}')
 
     # Floating loads must be done before int loads, because the last pickable int register will be overwritten.
     if fuzzerstate.design_has_fpu:
@@ -202,13 +202,13 @@ def gen_initial_basic_block(fuzzerstate, offset_addr: int, csr_init_rounding_mod
             fuzzerstate.add_instruction(FloatLoadInstruction("fld" if fuzzerstate.is_design_64bit else "flw", fp_reg_id, fuzzerstate.num_pickable_regs-1, 8*(fp_reg_id+fuzzerstate.num_pickable_regs-1), -1, fuzzerstate.is_design_64bit))
             curr_addr += 4
 
-    print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=}')
+    ###print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=}')
 
     for reg_id in range(1, fuzzerstate.num_pickable_regs):
         fuzzerstate.add_instruction(IntLoadInstruction("ld" if fuzzerstate.is_design_64bit else "lw", reg_id, fuzzerstate.num_pickable_regs-1, 8*(reg_id-1), -1, fuzzerstate.is_design_64bit))
         curr_addr += 4
 
-    print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=}')
+    ###print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=}')
 
     if DO_ASSERT:
         assert curr_addr == fuzzerstate.curr_bb_start_addr + len(fuzzerstate.instr_objs_seq[-1]) * 4, f"{curr_addr}, {fuzzerstate.curr_bb_start_addr + len(fuzzerstate.instr_objs_seq[-1]) * 4}" # NO_COMPRESSED
@@ -217,11 +217,12 @@ def gen_initial_basic_block(fuzzerstate, offset_addr: int, csr_init_rounding_mod
     num_reginit_vals = fuzzerstate.num_pickable_regs-1
     if fuzzerstate.design_has_fpu:
         num_reginit_vals += fuzzerstate.num_pickable_floating_regs
-    print(f'{fuzzerstate.initial_reg_data_content=}')
+    ###print(f'{fuzzerstate.initial_reg_data_content=}')
     for _ in range(num_reginit_vals):
         fuzzerstate.initial_reg_data_content.append(0 if random.random() < fuzzerstate.proba_reg_starts_with_zero else random.randrange(1 << 64))
-    print(f'{fuzzerstate.initial_reg_data_content=}'[:100] + '...')
-    print(f'{hex(fuzzerstate.initial_reg_data_content[0])=}')
+    ###print(f'{fuzzerstate.initial_reg_data_content=}'[:100] + '...')
+    ###print(f'{len(fuzzerstate.initial_reg_data_content)=}')
+    ###print(f'{hex(fuzzerstate.initial_reg_data_content[0])=}')
 
     # If there will be padding between the instructions and data, to ensure proper alignment of doubleword load and store ops for 64-bit CPUs
     #print('------->', curr_addr)
@@ -234,18 +235,18 @@ def gen_initial_basic_block(fuzzerstate, offset_addr: int, csr_init_rounding_mod
     #print('------->', len(fuzzerstate.instr_objs_seq[-1]))
     #print('------->', len(fuzzerstate.initial_reg_data_content))
     #print('------->', int(has_padding) * 4)
-    print(f'{intended_initial_block_plus_reginit_size=}')
-    print(f'{len(fuzzerstate.instr_objs_seq[-1])=}')
-    print(f'{len(fuzzerstate.initial_reg_data_content)=}')
+    ###print(f'{hex(intended_initial_block_plus_reginit_size)=}')
+    ###print(f'{len(fuzzerstate.instr_objs_seq[-1])=}')
+    ###print(f'{len(fuzzerstate.initial_reg_data_content)=}')
 
 
-    # XXX: allocate memory??
+    # XXX: allocate memory range [0x0, 0x224)
     fuzzerstate.memview.alloc_mem_range(
-            start=fuzzerstate.curr_bb_start_addr,
-            alloc_size=intended_initial_block_plus_reginit_size+4) # NO_COMPRESSED
+            start=fuzzerstate.curr_bb_start_addr,  # 0x0
+            alloc_size=intended_initial_block_plus_reginit_size+4) # NO_COMPRESSED  # 220 + 4
 
 
-    # XXX: generate free address randomly??
+    # XXX: get random address from [0x224, 0x100000)
     range_bits_each_direction = get_range_bits_per_instrclass(ISAInstrClass.JAL)
     assert range_bits_each_direction == 20
     fuzzerstate.next_bb_addr = fuzzerstate.memview.gen_random_free_addr(
@@ -253,7 +254,7 @@ def gen_initial_basic_block(fuzzerstate, offset_addr: int, csr_init_rounding_mod
             min_space=BASIC_BLOCK_MIN_SPACE,  # 24 (bytes)
             left_bound=curr_addr - (1 << range_bits_each_direction),   # - 0x100000
             right_bound=curr_addr + (1 << range_bits_each_direction))  # + 0x100000
-    print(f'{fuzzerstate.next_bb_addr=}')
+    ###print(f'{hex(fuzzerstate.next_bb_addr)=}')
     if fuzzerstate.next_bb_addr is None:
         return False
 
@@ -261,7 +262,7 @@ def gen_initial_basic_block(fuzzerstate, offset_addr: int, csr_init_rounding_mod
     # Jump to the next basic block, say, with jal for simplicity
     fuzzerstate.add_instruction(create_instr("jal", fuzzerstate, curr_addr))
     curr_addr += 4 # NO_COMPRESSED
-    print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=}')
+    ###print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=}')
 
     # Add a potential nop to align the ld that load the random vals into the registers
     assert fuzzerstate.initial_reg_data_addr == -1
@@ -269,28 +270,28 @@ def gen_initial_basic_block(fuzzerstate, offset_addr: int, csr_init_rounding_mod
     if has_padding:
         fuzzerstate.initial_reg_data_addr += 4
         curr_addr += 4
-    print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=} for padding')
+    ###print(f'{hex(curr_addr)=} {len(fuzzerstate.instr_objs_seq[-1])=} for padding')
     assert fuzzerstate.initial_reg_data_addr != -1
     assert fuzzerstate.initial_reg_data_addr == curr_addr
 
     fuzzerstate.initial_block_data_start = curr_addr
 
-    if DO_ASSERT:
-        print(f'{hex(curr_addr)=} {curr_addr=}')
-        print(f'{bytes_until_random_vals_base_for_debug=}')
-        print(f'{bytes_until_random_vals=}')
-        assert curr_addr == bytes_until_random_vals_base_for_debug + bytes_until_random_vals, f"curr_addr {hex(curr_addr)}, right-hand {hex(bytes_until_random_vals_base_for_debug + bytes_until_random_vals)} ({hex(bytes_until_random_vals_base_for_debug)} + {hex(bytes_until_random_vals)})"
-        # Space taken by the random initial register values. We let some be zero.
+    ###print(f'{hex(curr_addr)=} {curr_addr=}')
+    ###print(f'{bytes_until_random_vals_base_for_debug=}')
+    ###print(f'{bytes_until_random_vals=}')
+    assert curr_addr == bytes_until_random_vals_base_for_debug + bytes_until_random_vals, f"curr_addr {hex(curr_addr)}, right-hand {hex(bytes_until_random_vals_base_for_debug + bytes_until_random_vals)} ({hex(bytes_until_random_vals_base_for_debug)} + {hex(bytes_until_random_vals)})"
+    # Space taken by the random initial register values. We let some be zero.
+
     curr_addr += 8 * num_reginit_vals
-    print(f'{num_reginit_vals=}')
-    print(f'{hex(curr_addr)=}')
+    ###print(f'{num_reginit_vals=}')
+    ###print(f'{hex(curr_addr)=}')
     fuzzerstate.initial_block_data_end = curr_addr
     if DO_ASSERT:
         assert curr_addr == fuzzerstate.curr_bb_start_addr + intended_initial_block_plus_reginit_size, f"{curr_addr}, {fuzzerstate.curr_bb_start_addr + len(fuzzerstate.instr_objs_seq[-1]) * 4 + 4 + len(fuzzerstate.initial_reg_data_content) * 8 + int(has_padding) * 4}" # NO_COMPRESSED
 
-    print(f'{fuzzerstate.curr_bb_start_addr=}')
-    print(f'{fuzzerstate.initial_reg_data_addr=}')
-    print(f'{hex(fuzzerstate.initial_block_data_start)=}')
-    print(f'{hex(fuzzerstate.initial_block_data_end)=}')
-    print(f'\033[31m[INFO]\033[m {[tuple(map(hex, v)) for v in fuzzerstate.memview.freepairs]=}')
+    ###print(f'{fuzzerstate.curr_bb_start_addr=}')
+    ###print(f'{fuzzerstate.initial_reg_data_addr=}')
+    ###print(f'{hex(fuzzerstate.initial_block_data_start)=}')
+    ###print(f'{hex(fuzzerstate.initial_block_data_end)=}')
+    ###print(f'\033[31m[INFO]\033[m {[tuple(map(hex, v)) for v in fuzzerstate.memview.freepairs]=}')
     return True
