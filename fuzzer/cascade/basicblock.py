@@ -57,7 +57,7 @@ def gen_basicblocks(fuzzerstate):
     fuzzerstate.save_reg_state()
     assert len(fuzzerstate.saved_reg_states) == 1
 
-    fuzzerstate.memview.alloc_mem_range(fuzzerstate.next_bb_addr, 0x18)  # BASIC_BLOCK_MIN_SPACE == 0x18
+    fuzzerstate.memview.alloc_mem_range(fuzzerstate.next_bb_addr, BASIC_BLOCK_MIN_SPACE)
     assert fuzzerstate.memview.freepairs == [(0x224, 0x7f30), (0x7f48, 0x10000)]
 
     print('\033[33m[INFO]\033[m Generate the random data block')
@@ -97,6 +97,8 @@ def gen_basicblocks(fuzzerstate):
 
     ########################################
 
+    assert len(fuzzerstate.memview.freepairs) == 27 + 1  # has allocated for the next basic block
+    assert len(fuzzerstate.instr_objs_seq) == 1
     assert fuzzerstate.is_fpu_activated is True, f'{fuzzerstate.is_fpu_activated=}'
     while True:
         bb_gen_success = gen_basicblock(fuzzerstate)
@@ -111,6 +113,8 @@ def gen_basicblocks(fuzzerstate):
         assert not (fuzzerstate.memview.get_allocated_ratio() >= LIMIT_MEM_SATURATION_RATIO)
         assert not fuzzerstate.has_reached_max_instr_num()
         if fuzzerstate.nmax_bbs is not None and len(fuzzerstate.instr_objs_seq) >= fuzzerstate.nmax_bbs:
+            assert len(fuzzerstate.memview.freepairs) == 77
+            assert len(fuzzerstate.instr_objs_seq) == 51
             break
 
         fuzzerstate.memview.alloc_mem_range(fuzzerstate.next_bb_addr, BASIC_BLOCK_MIN_SPACE)
@@ -156,25 +160,18 @@ def gen_basicblocks(fuzzerstate):
     # print('Start addr:', hex(fuzzerstate.bb_start_addr_seq[147]))
 
     print('\033[36m[TRACE]\033[m end of change fuzzerstate')
-    #return fuzzerstate
 
-# The first BASIC_BLOCK_MIN_SPACE must be pre-allocated. The rationale is that we 
-# want to pre-allocate at least for the first basic block, to prevent the store 
-# data from landing exactly there.
-# @return True iff the creation is successful
-def gen_basicblock(fuzzerstate):
+def gen_basicblock(fuzzerstate) -> bool:
+    """
+    The first BASIC_BLOCK_MIN_SPACE must be pre-allocated. The rationale is that we
+    want to pre-allocate at least for the first basic block, to prevent the store
+    data from landing exactly there.
+    @return True iff the creation is successful
+    """
     #fuzzerstate.init_new_bb() # Update fuzzer state to support a new basic block
     fuzzerstate.instr_objs_seq.append([])
-
     fuzzerstate.bb_start_addr_seq.append(fuzzerstate.next_bb_addr)
     fuzzerstate.curr_bb_start_addr, fuzzerstate.next_bb_addr = fuzzerstate.next_bb_addr, None
-
-    # This points to the first address after the current basic block allocation.
-    #  The block allocation takes 16 bytes in advance, to avoid storing and then 
-    # not being able to continue expanding the basic block.
-    curr_alloc_cursor = fuzzerstate.curr_bb_start_addr + BASIC_BLOCK_MIN_SPACE
-    curr_isa_class = None # This is used in case there is only space for control flow
-    fuzzerstate.curr_branch_taken = None
 
     def get_available_contig_space(freepairs, addr) -> "size":
         for curr_pair in freepairs:
@@ -183,61 +180,87 @@ def gen_basicblock(fuzzerstate):
         else:
             return 0
 
-    # We stop the instruction generation either when there is no more space 
-    # available, or when we encounter an end-of-state instruction
-    while get_available_contig_space(fuzzerstate.memview.freepairs, curr_alloc_cursor) > BASIC_BLOCK_MIN_SPACE + 4:
+    # XXX: maybe additional 0x18 + 4 is for expanding instructions
+    # This points to the first address after the current basic block allocation.
+    # The block allocation takes 16 bytes in advance, to avoid storing and then
+    # not being able to continue expanding the basic block.
+    assert BASIC_BLOCK_MIN_SPACE == 0x18
+    curr_alloc_cursor = fuzzerstate.curr_bb_start_addr + BASIC_BLOCK_MIN_SPACE
+    curr_isa_class = None # This is used in case there is only space for control flow
+    fuzzerstate.curr_branch_taken = None  # XXX: used by `cascade.randomize.createcfinstr._create_BranchInstruction`
+    while True:
+        # We stop the instruction generation either when there is no more space
+        # available, or when we encounter an end-of-state instruction
+        contiguous_length = get_available_contig_space(fuzzerstate.memview.freepairs, curr_alloc_cursor)
+        #print(f'{hex(curr_alloc_cursor)=}')
+        if not (contiguous_length > BASIC_BLOCK_MIN_SPACE + 4):
+            #print(f'{fuzzerstate.instr_objs_seq[-1]=}')
+            #print(f'{len(fuzzerstate.instr_objs_seq[-1])=}')
+            #print('\033[35m[DEBUG]\033[m inenough contiguous space')
+            break
+
         is_block_terminated = False
         new_instrobjs = None
         #curr_addr = fuzzerstate.get_current_addr()
-        curr_addr = fuzzerstate.curr_bb_start_addr + 4 * len(fuzzerstate.instr_objs_seq[-1])
+        curr_addr = fuzzerstate.curr_bb_start_addr + len(fuzzerstate.instr_objs_seq[-1]) * 4
+        assert curr_alloc_cursor - curr_addr == 0x18
 
         # Get the next instruction class
         assert fuzzerstate.has_reached_max_instr_num() is False
+        curr_isa_class = gen_next_isainstrclass(fuzzerstate)
         #if fuzzerstate.has_reached_max_instr_num():
         #    curr_isa_class = ISAInstrClass.JAL
         #else:
         #    curr_isa_class = gen_next_isainstrclass(fuzzerstate)
-        curr_isa_class = gen_next_isainstrclass(fuzzerstate)
-
-        # Decide on branch side
-        if curr_isa_class == ISAInstrClass.BRANCH:
-            fuzzerstate.curr_branch_taken = random.random() < BRANCH_TAKEN_PROBA
-
-        # Generate next bb addr if the instruction will terminate the block
-        if (curr_isa_class == ISAInstrClass.DESCEND_PRV) or \
-                (curr_isa_class == ISAInstrClass.EXCEPTION) or \
-                (curr_isa_class == ISAInstrClass.JAL) or \
-                (curr_isa_class == ISAInstrClass.JALR) or \
-                ((curr_isa_class == ISAInstrClass.BRANCH) and fuzzerstate.curr_branch_taken):
-            # Create space for the next basic block.
-            is_block_terminated = gen_next_bb_addr(fuzzerstate, curr_isa_class, curr_addr, curr_alloc_cursor)
-            assert is_block_terminated is True
 
         # Generate instruction
         match curr_isa_class:
+
             # If this was a JAL due to reaching the max authorized number of instructions
             #case  ISAInstrClass.JAL if fuzzerstate.has_reached_max_instr_num():
             #    instr_str = gen_next_instrstr_from_isaclass(curr_isa_class, fuzzerstate)
             #    assert instr_str == 'jal', f"Unexpected instruction string `{instr_str}`"
             #    new_instrobjs = [create_instr("jal", fuzzerstate, curr_addr)]
+            #    ...
+
+            # Generate next bb addr if the instruction will terminate the block
+            # =================================================================
 
             # Privilege descent instruction or an mpp/spp write instruction
             case ISAInstrClass.DESCEND_PRV:
+                fuzzerstate.memview.alloc_mem_range(curr_alloc_cursor, 4)
+                is_block_terminated = gen_next_bb_addr(fuzzerstate, curr_isa_class, curr_addr)
+                assert is_block_terminated is True
                 new_instrobjs = [gen_priv_descent_instr(fuzzerstate)]
 
             # Generate exception instruction
             case ISAInstrClass.EXCEPTION:
+                fuzzerstate.memview.alloc_mem_range(curr_alloc_cursor, 4)
+                is_block_terminated = gen_next_bb_addr(fuzzerstate, curr_isa_class, curr_addr)
+                assert is_block_terminated is True
                 new_instrobjs = [gen_exception_instr(fuzzerstate)]
 
             # Create JAL/JALR instrction and generate next bb address
             case ISAInstrClass.JAL | ISAInstrClass.JALR:
+                fuzzerstate.memview.alloc_mem_range(curr_alloc_cursor, 4)
+                is_block_terminated = gen_next_bb_addr(fuzzerstate, curr_isa_class, curr_addr)
+                assert is_block_terminated is True
                 instr_str = gen_next_instrstr_from_isaclass(curr_isa_class, fuzzerstate)
                 new_instrobjs = [create_instr(instr_str, fuzzerstate, curr_addr)]
 
             # Create taken branch instruction, non taken branch use default
-            case ISAInstrClass.BRANCH if fuzzerstate.curr_branch_taken:
+            case ISAInstrClass.BRANCH:
+                fuzzerstate.curr_branch_taken = random.random() < BRANCH_TAKEN_PROBA
+                if fuzzerstate.curr_branch_taken:
+                    fuzzerstate.memview.alloc_mem_range(curr_alloc_cursor, 4)
+                    is_block_terminated = gen_next_bb_addr(fuzzerstate, curr_isa_class, curr_addr)
+                    assert is_block_terminated is True
+
                 instr_str = gen_next_instrstr_from_isaclass(curr_isa_class, fuzzerstate)
                 new_instrobjs = [create_instr(instr_str, fuzzerstate, curr_addr)]
+
+            # XXX: others
+            # ===========
 
             # Generate xPP register
             case ISAInstrClass.PPFSM:
@@ -278,14 +301,16 @@ def gen_basicblock(fuzzerstate):
 
         # Return if the block is over
         if is_block_terminated:
+            #print(f'{fuzzerstate.instr_objs_seq[-1]=}')
+            #print(f'{len(fuzzerstate.instr_objs_seq[-1])=}')
+            #print('\033[35m[DEBUG]\033[m is_block_terminated')
             return True
 
         # Update memory and generate next instruction
-        instr_mem_size = 4 * len(new_instrobjs)
+        instr_mem_size = len(new_instrobjs) * 4
+        assert instr_mem_size < BASIC_BLOCK_MIN_SPACE
         fuzzerstate.memview.alloc_mem_range(curr_alloc_cursor, instr_mem_size)
         curr_alloc_cursor += instr_mem_size
-        if DO_ASSERT:
-            assert len(new_instrobjs) * 4 < BASIC_BLOCK_MIN_SPACE # NO_COMPRESSED
 
     # This is reached if we need to urgently jump to the next basic block.
     # The algorithm is the following: if there is a possibility to jump immediately, 
@@ -294,36 +319,34 @@ def gen_basicblock(fuzzerstate):
 
     # No need for any preparation if jal, because it has no true dependency
     if curr_isa_class in (ISAInstrClass.JAL, ISAInstrClass.BRANCH):
-        curr_addr = fuzzerstate.curr_bb_start_addr + 4 * len(fuzzerstate.instr_objs_seq[-1])
+        curr_addr = fuzzerstate.curr_bb_start_addr + len(fuzzerstate.instr_objs_seq[-1]) * 4
 
         # Gen the next bb addr
-        is_block_terminated = gen_next_bb_addr(fuzzerstate, curr_isa_class, curr_addr, curr_alloc_cursor, False)
-        assert is_block_terminated is True
+        if not (success := gen_next_bb_addr(fuzzerstate, curr_isa_class, curr_addr)):
+            return False
+
         if curr_isa_class == ISAInstrClass.JAL:
             fuzzerstate.instr_objs_seq[-1].append(create_instr("jal", fuzzerstate, curr_addr))
-        elif curr_isa_class == ISAInstrClass.BRANCH:
+
+        else:
+            assert curr_isa_class == ISAInstrClass.BRANCH
             fuzzerstate.curr_branch_taken = True
             # The branch type does not batter because it will be re-determined once the operand values are known
             fuzzerstate.instr_objs_seq[-1].append(create_instr("bne", fuzzerstate, curr_addr))
-        else:
-            raise ValueError(f"Unexpected isa class `{curr_isa_class}`")
     else:
-        assert curr_isa_class == ISAInstrClass.JALR
-
         # For JALR, bring some reg to maturity, and then insert the control flow instruction
-        if DO_ASSERT:
-            assert curr_isa_class == ISAInstrClass.JALR
+        assert curr_isa_class == ISAInstrClass.JALR
 
         # XXX: it appends a few instructions
         fuzzerstate.intregpickstate.bring_some_reg_to_state(IntRegIndivState.CONSUMED, fuzzerstate)
-        curr_addr = fuzzerstate.get_current_addr() # NO_COMPRESSED
+
+        curr_addr = fuzzerstate.curr_bb_start_addr + len(fuzzerstate.instr_objs_seq[-1]) * 4
 
         # Gen the next bb addr
-        is_block_terminated = gen_next_bb_addr(fuzzerstate, curr_isa_class, curr_addr, curr_alloc_cursor, False)
-        if not is_block_terminated:
+        if not (success := gen_next_bb_addr(fuzzerstate, curr_isa_class, curr_addr)):
             return False
-        else:
-            fuzzerstate.add_instruction(create_instr('jalr', fuzzerstate, curr_addr))
+
+        fuzzerstate.add_instruction(create_instr('jalr', fuzzerstate, curr_addr))
 
     return True
 
@@ -507,24 +530,33 @@ def gen_producer_id_to_tgtaddr(fuzzerstate, memop_addrs):
 
     return producer_id_to_tgtaddr, producer_id_to_noreloc_spike
 
-# Given the provided control flow instruction, finds a location for a new block, 
-# but does not allocate it.
-# @return False if could not find a next bb address
-def gen_next_bb_addr(fuzzerstate, isa_class: ISAInstrClass, curr_addr: int, curr_alloc_cursor: int, alloc_mem: bool = True):
+def gen_next_bb_addr(fuzzerstate, isa_class: ISAInstrClass, curr_addr: int):
+#def gen_next_bb_addr(fuzzerstate, isa_class: ISAInstrClass, curr_addr: int, curr_alloc_cursor: int, alloc_mem: bool = True):
+    """
+    Given the provided control flow instruction, finds a location for a new block, 
+    but does not allocate it.
+    @return False if could not find a next bb address
+    """
     # Allocate current instruction if called by the main loop, else we used the 
     # reserved memory
-    if alloc_mem:
-        fuzzerstate.memview.alloc_mem_range(curr_alloc_cursor, 4)
+    #if alloc_mem:
+    #    fuzzerstate.memview.alloc_mem_range(curr_alloc_cursor, 4)
+
     # We must select the next basic block address before the resolution
     instr_range = get_range_bits_per_instrclass(isa_class)
     left_boundary = curr_addr - (1 << instr_range)
     right_boundary = curr_addr + (1 << instr_range)
+
+    assert fuzzerstate.next_bb_addr is None
     fuzzerstate.next_bb_addr = fuzzerstate.memview.gen_random_free_addr(4, BASIC_BLOCK_MIN_SPACE, left_boundary, right_boundary)
+    #print(f'{isa_class=} {hex(fuzzerstate.next_bb_addr)=}')
+
     # If we could not find a new address where to place the next basic block,
     # then return and consider this stage complete.
     if fuzzerstate.next_bb_addr is None:
+        # XXX: for `nmax_bbs` is None
         # Abort the bb
-        fuzzerstate.restore_previous_state()
+        fuzzerstate.restore_previous_state()  # XXX: remove the last basic block and related
         return False
     else:
         return True

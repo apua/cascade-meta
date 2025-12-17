@@ -74,21 +74,21 @@ def _create_BranchInstruction(instr_str: str, fuzzerstate, curr_addr: int, iscom
     rs2 = fuzzerstate.intregpickstate.pick_int_inputreg()
     plan_taken = fuzzerstate.curr_branch_taken
     if plan_taken:
-        # print('A', flush=True)
-        imm = fuzzerstate.next_bb_addr-curr_addr
+        imm = fuzzerstate.next_bb_addr - curr_addr
     else:
+        # XXX: jump to random data?!
         # Select whether to direct toward the random data basic block
-        is_random_data_block_in_reach = abs(fuzzerstate.random_data_block_start_addr - curr_addr) < (1<<11) and abs(fuzzerstate.random_data_block_end_addr-4 - curr_addr) < (1<<11)
+        is_random_data_block_in_reach = abs(fuzzerstate.random_data_block_start_addr - curr_addr) < (1<<11) \
+                                    and abs(fuzzerstate.random_data_block_end_addr - 4 - curr_addr) < (1<<11)
         if is_random_data_block_in_reach and random.random() < NONTAKEN_BRANCH_INTO_RANDOM_DATA_PROBA:
-            lowest_random_data_reachable_addr = max(fuzzerstate.random_data_block_start_addr+4, curr_addr - (1<<11))
-            highest_random_data_reachable_addr = min(fuzzerstate.random_data_block_end_addr-4, curr_addr + (1<<11))
+            lowest_random_data_reachable_addr = max(fuzzerstate.random_data_block_start_addr + 4, curr_addr - (1<<11))
+            highest_random_data_reachable_addr = min(fuzzerstate.random_data_block_end_addr - 4, curr_addr + (1<<11))
 
-            target_addr_in_random_data_block = random.randrange(lowest_random_data_reachable_addr//2, highest_random_data_reachable_addr//2)*2
-            imm = target_addr_in_random_data_block-curr_addr
+            target_addr_in_random_data_block = random.randrange(lowest_random_data_reachable_addr//2, highest_random_data_reachable_addr//2) * 2
+            imm = target_addr_in_random_data_block - curr_addr
         else:
             imm = gen_random_imm(instr_str, fuzzerstate.is_design_64bit)
     
-    # print('New imm', hex(imm), flush=True)
     return BranchInstruction(instr_str, rs1, rs2, imm, plan_taken, fuzzerstate.is_design_64bit, iscompressed)
 
 def _create_JALInstruction(instr_str: str, fuzzerstate, curr_addr: int, iscompressed: bool):
@@ -255,11 +255,13 @@ def create_targeted_producer0_instrobj(fuzzerstate):
     # fuzzerstate.intregpickstate.set_producer1_location(rd, len(fuzzerstate.instr_objs_seq), len(fuzzerstate.instr_objs_seq[0])) # Optimization currently unused
     fuzzerstate.intregpickstate.set_regstate(rd, IntRegIndivState.PRODUCED0)
     return [PlaceholderProducerInstr0(rd, fuzzerstate.next_producer_id, fuzzerstate.is_design_64bit)]
+
 def create_targeted_producer1_instrobj(fuzzerstate):
     rd = fuzzerstate.intregpickstate.pick_int_reg_in_state(IntRegIndivState.PRODUCED0)
     # fuzzerstate.intregpickstate.set_producer1_location(rd, len(fuzzerstate.instr_objs_seq), len(fuzzerstate.instr_objs_seq[0])) # Optimization currently unused
     fuzzerstate.intregpickstate.set_regstate(rd, IntRegIndivState.PRODUCED1)
     return [PlaceholderProducerInstr1(rd, fuzzerstate.intregpickstate.get_producer_id(rd), fuzzerstate.is_design_64bit)]
+
 def create_targeted_consumer_instrobj(fuzzerstate):
     rdep = fuzzerstate.intregpickstate.pick_int_inputreg_nonzero(False) # We want to create dependencies, therefore we choose not to accept x0
     rprod = fuzzerstate.intregpickstate.pick_int_reg_in_state(IntRegIndivState.PRODUCED1)

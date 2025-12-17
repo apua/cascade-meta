@@ -27,7 +27,7 @@ class MemStoreState:
             if next_store_location is None: raise ValueError(f"Could not find a next store location. You may want to increase the memory size (for the moment: {memview.memsize:,} B)")
             memview.alloc_mem_range(next_store_location, (1 << ALIGNMENT_BITS_MAX))
 
-            print(f'{store_location_id=} {hex(next_store_location)=}')
+            #print(f'{store_location_id=} {hex(next_store_location)=}')
             #print(f'{len(memview.freepairs)=}')
             #print(f'{[tuple(map(hex, v)) for v in memview.freepairs]=}')
 
