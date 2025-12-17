@@ -29,6 +29,9 @@ import random
 # Does not transmit the next bb address to the control flow instructions.
 # @param fuzzerstate a freshly created fuzzerstate.
 def gen_basicblocks(fuzzerstate):
+    def freepairs():
+        return [tuple(map(hex, v)) for v in fuzzerstate.memview.freepairs]
+
     print('\033[33m[INFO]\033[m reset')
     fuzzerstate.reset()
     assert not hasattr(fuzzerstate, 'curr_bb_start_addr')
@@ -37,6 +40,7 @@ def gen_basicblocks(fuzzerstate):
     assert fuzzerstate.num_store_locations == 23
     assert fuzzerstate.num_pickable_regs == 24
     assert fuzzerstate.num_pickable_floating_regs == 9
+    assert fuzzerstate.initial_reg_data_content == []
 
     print('\033[33m[INFO]\033[m gen_initial_basic_block')
     gen_initial_basic_block(fuzzerstate, SPIKE_STARTADDR)
@@ -48,6 +52,7 @@ def gen_basicblocks(fuzzerstate):
     assert len(fuzzerstate.instr_objs_seq) == 1
     assert fuzzerstate.next_bb_addr == 0x7f30
     assert len(fuzzerstate.saved_reg_states) == 0
+    assert len(fuzzerstate.initial_reg_data_content) == 32
 
     fuzzerstate.save_reg_state()
     assert len(fuzzerstate.saved_reg_states) == 1
@@ -60,6 +65,7 @@ def gen_basicblocks(fuzzerstate):
     assert fuzzerstate.random_data_block_start_addr == 0xd794
     assert fuzzerstate.random_data_block_end_addr == 0xd7b0
     assert fuzzerstate.memview.freepairs == [(0x224, 0x7f30), (0x7f48, 0xd794), (0xd7b0, 0x10000)]
+    assert len(fuzzerstate.random_block_content4by4bytes) == 7
 
     print('\033[33m[INFO]\033[m allocate final basic block')
     alloc_final_basic_block(fuzzerstate)
@@ -69,15 +75,18 @@ def gen_basicblocks(fuzzerstate):
     # Reserve space for the context setter basic block, but do not instantiate
     # it because we do not know yet what it will look like until we have a concrete
     # context to restore. Until then, we just know arbitrary bounds.
-    assert alloc_context_saver_bb(fuzzerstate) is True
+    result = alloc_context_saver_bb(fuzzerstate)
+    assert result is True
     assert fuzzerstate.ctxsv_size_upperbound == 0xedc  # XXX: comes from `cascade.contextreplay.get_context_setter_max_size`
     assert fuzzerstate.ctxsv_bb_base_addr == 0x5674
-    #print(f'{hex(fuzzerstate.ctxsv_size_upperbound)=}')
-    #print(f'{hex(fuzzerstate.ctxsv_bb_base_addr)=}')
+    assert fuzzerstate.memview.freepairs == [(0x224, 0x2d7c), (0x32ec, 0x5674), (0x6550, 0x7f30), (0x7f48, 0xd794), (0xd7b0, 0x10000)]
 
     # XXX: unknown usage
     # Finally, generate the store locations. This can be swapped with generating the final basic block.
+    assert len(fuzzerstate.memview.freepairs) == 5
     fuzzerstate.memstorestate.init_store_locations(fuzzerstate.num_store_locations, fuzzerstate.memview)
+    assert len(fuzzerstate.memview.freepairs) == 28
+    assert len(fuzzerstate.memstorestate.store_locations) == 23
 
     assert fuzzerstate.curr_bb_start_addr == 0x0
     assert fuzzerstate.get_num_fuzzing_instructions_sofar() == 0, "We should have generated only one basic block so far."
@@ -89,7 +98,6 @@ def gen_basicblocks(fuzzerstate):
     ########################################
 
     assert fuzzerstate.is_fpu_activated is True, f'{fuzzerstate.is_fpu_activated=}'
-
     while True:
         bb_gen_success = gen_basicblock(fuzzerstate)
         if not bb_gen_success:
@@ -533,7 +541,6 @@ def gen_random_data_block(fuzzerstate):
     fuzzerstate.random_data_block_end_addr = fuzzerstate.random_data_block_start_addr + lenbytes
     print(f'{fuzzerstate.random_data_block_start_addr=}')
     print(f'{fuzzerstate.random_data_block_end_addr=}')
-    #1/0
     if DO_ASSERT:
         assert fuzzerstate.random_data_block_start_addr is not None, f"Maybe you should create the random data block earlier in the creation of the test case."
     fuzzerstate.memview.alloc_mem_range(fuzzerstate.random_data_block_start_addr, lenbytes)
