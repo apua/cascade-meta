@@ -84,11 +84,41 @@ miscellaneous
     allocate store location (?)
     amount is 23 random in [1, 30]
     `fuzzerstate.num_store_locations`
-    freepairs length +23
+    freepairs length 5 + 23
     store location length 23
     `fuzzerstate.memstorestate.store_locations`
 
-...
+generate basic blocks
+    loop until reach `nmax_bbs` (eg: 51 - 1 = 50)
+    or out of space for the next basic block
+
+    during generating basic block,
+    keep generating instructions if extra space left,
+    otherwise, generating a J instruction
+
+    .. code:: python
+
+        for _ in range(1, 51+1):
+            basicblock_address = address_to_jump
+            allocate_space(length=0x18)
+            basicblock = []
+            while space_left(start=basicblock_address, extra=0x18+4):
+                instructions = ...(...)  # may include `address_to_jump`
+                allocate_space(start=basicblock_address+len(basicblock)*4, length=len(instructions)*4)
+                basicblock.extend(instructions)
+                if hasattr(instructions, 'address_to_jump'):
+                    address_to_jump = getattr(instructions, 'address_to_jump')
+                    break
+            else:
+                instructions = ...(...)  # include `address_to_jump`
+                allocate_space(start=basicblock_address+len(basicblock)*4, length=len(instructions)*4)
+                basicblock.extend(instructions)
+                address_to_jump = getattr(instructions, 'address_to_jump')
+
+            yield basicblock
+
+            if address_to_jump is None:
+                break  # out of space
 
 generate final block
     `fuzzerstate.final_bb`
