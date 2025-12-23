@@ -89,12 +89,15 @@ miscellaneous
     `fuzzerstate.memstorestate.store_locations`
 
 generate basic blocks
+    `fuzzerstate.bb_start_addr_seq`
+    `fuzzerstate.instr_objs_seq`
+
     loop until reach `nmax_bbs` (eg: 51 - 1 = 50)
     or out of space for the next basic block
 
     during generating basic block,
     keep generating instructions if extra space left,
-    otherwise, generating a J instruction
+    otherwise, generating a branch/jump instruction
 
     .. code:: python
 
@@ -119,6 +122,9 @@ generate basic blocks
 
             if address_to_jump is None:
                 break  # out of space
+
+    if the last basic block cannot reach the final block,
+    pop it out until one can
 
 generate final block
     `fuzzerstate.final_bb`

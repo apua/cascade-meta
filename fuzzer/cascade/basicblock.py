@@ -101,9 +101,7 @@ def gen_basicblocks(fuzzerstate):
     assert len(fuzzerstate.instr_objs_seq) == 1
     assert fuzzerstate.is_fpu_activated is True, f'{fuzzerstate.is_fpu_activated=}'
     while True:
-        bb_gen_success = gen_basicblock(fuzzerstate)
-        if not bb_gen_success:
-            # XXX: only when nmax_bbs is None
+        if not (success := gen_basicblock(fuzzerstate)):
             break
 
         # Save the register states
@@ -113,20 +111,22 @@ def gen_basicblocks(fuzzerstate):
         assert not (fuzzerstate.memview.get_allocated_ratio() >= LIMIT_MEM_SATURATION_RATIO)
         assert not fuzzerstate.has_reached_max_instr_num()
         if fuzzerstate.nmax_bbs is not None and len(fuzzerstate.instr_objs_seq) >= fuzzerstate.nmax_bbs:
-            assert len(fuzzerstate.memview.freepairs) == 77
-            assert len(fuzzerstate.instr_objs_seq) == 51
+            assert len(fuzzerstate.memview.freepairs) == 28 + max(0, fuzzerstate.nmax_bbs - 2), len(fuzzerstate.memview.freepairs)
+            assert len(fuzzerstate.instr_objs_seq) in (2, fuzzerstate.nmax_bbs)
             break
 
         fuzzerstate.memview.alloc_mem_range(fuzzerstate.next_bb_addr, BASIC_BLOCK_MIN_SPACE)
 
     #assert fuzzerstate.is_fpu_activated is False, f'{fuzzerstate.is_fpu_activated=}'
+    print(f'{hex(fuzzerstate.bb_start_addr_seq[-1])=}')
+
+    ########################################
 
     # XXX: it pops out unsuitable basic blocks, while the jump range is limited by the immediate of `jal` and `jalr` 
     # Find a suitable last bb and connect it with the final block
-    pop_success = pop_last_bbs_to_connect_with_final_block(fuzzerstate)
-    assert pop_success is True
-
-    ########################################
+    success = pop_last_bbs_to_connect_with_final_block(fuzzerstate)
+    assert success is True
+    assert len(fuzzerstate.instr_objs_seq) in (2, 1, fuzzerstate.nmax_bbs, fuzzerstate.nmax_bbs-1)
 
     # Generate the content of the final basic block, now that we know the final privilege level.
     print('\033[33m[INFO]\033[m generate final basic block')
@@ -135,7 +135,7 @@ def gen_basicblocks(fuzzerstate):
     assert len(fuzzerstate.final_bb) in (85, 56)
 
 
-    # XXX: update `memview_blacklist`
+    # XXX: update `memview_blacklist`, effect the value of placeholder
     # Forbid loads from addresses where instructions change between spike resolution and RTL sim.
     blacklist_changing_instructions(fuzzerstate)
     # Must be done once the bb is created, else we could also blacklist upper 
@@ -146,8 +146,9 @@ def gen_basicblocks(fuzzerstate):
     # Generate addresses for memory operations
     memop_addrs = gen_memop_addrs(fuzzerstate)
     print(f'{[hex(a) for a in memop_addrs]=}')
-
     fuzzerstate.producer_id_to_tgtaddr, fuzzerstate.producer_id_to_noreloc_spike = gen_producer_id_to_tgtaddr(fuzzerstate, memop_addrs)
+    print(f'{len(fuzzerstate.producer_id_to_tgtaddr)=}')
+    print(f'{len(fuzzerstate.producer_id_to_noreloc_spike)=}')
 
     # Debug only
     # for bb_id, bb in enumerate(fuzzerstate.instr_objs_seq):
@@ -715,3 +716,31 @@ def alloc_final_basic_block(fuzzerstate):
 
     fuzzerstate.final_bb_base_addr = start_address
     #print(f'{hex(fuzzerstate.final_bb_base_addr)=}')
+
+
+def gen_memop_addrs(fuzzerstate):
+    from cascade import cfinstructionclasses as cf
+    control_flow = (
+            cf.PlaceholderProducerInstr0,
+            cf.PlaceholderProducerInstr1,
+            cf.PlaceholderPreConsumerInstr,
+            cf.PlaceholderConsumerInstr,
+            )
+    load_store = sum((
+            INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.MEM],
+            INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.MEM64],
+            INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.MEMFPU],
+            INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.MEMFPUD],
+            ), [])
+    ret = []
+    for instruction in (bb_instr for bb_instrlist in fuzzerstate.instr_objs_seq for bb_instr in bb_instrlist):
+        if not isinstance(instruction, control_flow) and instruction.instr_str in load_store:
+            memop_addr = pick_memop_addr(
+                    fuzzerstate,
+                    is_curr_load=is_instrstr_load(instruction.instr_str),
+                    alignment_bits=get_alignment_bits(instruction.instr_str),
+                    )
+            ret.append(memop_addr)
+
+    assert ret == [0xe30, 0xb3e0, 0x24f0, 0xb3e0, 0xb3e0, 0x7970, 0xb3e0, 0xb3e0, 0x2168, 0xb3e0, 0xb3e0, 0xd328, 0xb4d0, 0xb3e0, 0xe248, 0x7b68, 0x8410, 0xf660, 0x69b8, 0xb3e0, 0xcd38, 0xb460, 0xc7f8, 0xb3e0, 0xb3e0, 0xa718, 0xb600, 0xb3e0, 0x9b78, 0xb3e0, 0xb3e0, 0xb3e0, 0xb3e4, 0xb3e4, 0xcf40, 0xa938, 0x2904, 0x1220, 0x9ea8, 0x6f2e, 0x278, 0x546a, 0xb3e6, 0xe500, 0xb3e4, 0xb3e0, 0xb3e4, 0x934d, 0xb3e6, 0xb3e0, 0xb3e0, 0x16ee, 0xb3e4, 0xef14, 0xf519, 0xb3e5, 0xb3e0, 0xb3e4, 0x92fc, 0xb3e4, 0xb3e0, 0xfcb0, 0xb3e4, 0xb3e0, 0xb3e0, 0xb3e4]
+    return ret

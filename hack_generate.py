@@ -139,6 +139,7 @@ class FuzzerState(FuzzerStateBase):
     memsize = 881540  # 0xd7384
     memsize = 0x1000
     memsize = 0x10000
+    #memsize, randseed, nmax_bbs = 1000055, 400035, 77
 
     # don't know what they are
     authorize_privileges = True
