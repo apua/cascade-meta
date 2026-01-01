@@ -22,7 +22,7 @@ def blacklist_changing_instructions(fuzzerstate):
     # The first two instructions set up the relocator reg and may change betweend spike and rtl.
     fuzzerstate.memview_blacklist.alloc_mem_range(fuzzerstate.bb_start_addr_seq[0], 8) # NO_COMPRESSED
     assert fuzzerstate.bb_start_addr_seq[0] == 0x0
-    assert len(fuzzerstate.instr_objs_seq) in (2, 1, fuzzerstate.nmax_bbs, fuzzerstate.nmax_bbs-1)
+    #assert len(fuzzerstate.instr_objs_seq) in (2, 1, fuzzerstate.nmax_bbs, fuzzerstate.nmax_bbs-1)
 
     # Find specific instruction types to blacklist
     for bb_id, bb_instrlist in enumerate(fuzzerstate.instr_objs_seq):

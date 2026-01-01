@@ -276,6 +276,7 @@ class BranchInstruction(ImmInstruction):
         ]
 
         self.instr_str = random.choices(BranchInstructions, can_take_opcodes, k=1)[0]
+        #print(f'{can_take_opcodes=} {self.instr_str}')
 
     def gen_bytecode_int(self, is_spike_resolution: bool):
         if is_spike_resolution:
@@ -966,11 +967,17 @@ class PlaceholderProducerInstr0:
         if is_spike_resolution:
             if DO_ASSERT:
                 assert self.spike_resolution_offset < (1 << 32)
-            return rv32i_lui(self.rd, li_into_reg(to_unsigned(self.spike_resolution_offset, self.is_design_64bit), False)[0])
+
+            lui_imm, addi_imm = li_into_reg(to_unsigned(self.spike_resolution_offset, self.is_design_64bit), False)
+            #print(f'rv32i_lui {self.producer_id} {self.rd} {self.spike_resolution_offset:08x} {lui_imm:x} {addi_imm:x}')
+            return rv32i_lui(self.rd, lui_imm)
+
         else:
             if DO_ASSERT:
                 assert self.rtl_offset is not None, "Producer0 cannot produce final bytecode because it does not yet know the final offset."
-            return rv32i_lui(self.rd, li_into_reg(to_unsigned(self.rtl_offset, self.is_design_64bit), False)[0])
+
+            lui_imm, addi_imm = li_into_reg(to_unsigned(self.rtl_offset, self.is_design_64bit), False)
+            return rv32i_lui(self.rd, lui_imm)
 
 # Does not inherit from CFInstruction.
 class PlaceholderProducerInstr1:
@@ -988,11 +995,15 @@ class PlaceholderProducerInstr1:
         if is_spike_resolution:
             if DO_ASSERT:
                 assert self.spike_resolution_offset < (1 << 32)
-            return rv32i_addi(self.rd, self.rd, li_into_reg(to_unsigned(self.spike_resolution_offset, self.is_design_64bit), False)[1])
+
+            lui_imm, addi_imm = li_into_reg(to_unsigned(self.spike_resolution_offset, self.is_design_64bit), False)
+            #print(f'rv32i_addi {self.producer_id} {self.rd} {self.spike_resolution_offset:08x} {lui_imm:x} {addi_imm:x}')
+            return rv32i_addi(self.rd, self.rd, addi_imm)
         else:
             if DO_ASSERT:
                 assert self.rtl_offset is not None, "Producer1 cannot produce final bytecode because it does not yet know the final rtl_offset."
-            return rv32i_addi(self.rd, self.rd, li_into_reg(to_unsigned(self.rtl_offset, self.is_design_64bit), False)[1])
+            lui_imm, addi_imm = li_into_reg(to_unsigned(self.rtl_offset, self.is_design_64bit), False)
+            return rv32i_addi(self.rd, self.rd, addi_imm)
 
 # Does not inherit from CFInstruction.
 class PlaceholderPreConsumerInstr:

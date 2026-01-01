@@ -34,12 +34,15 @@ def gen_regdump_reqs(fuzzerstate):
             if isinstance(bb_instr, PlaceholderConsumerInstr):
                 ret.append((curr_addr, False, bb_instr.rdep))
                 #print(f'\033[36m[TRACE]\033[m {hex(curr_addr)=} {bb_instr.rdep=}')
+
             # For branches, we need to know the val of both operands to generate a suitable opcode later.
             if isinstance(bb_instr, BranchInstruction):
                 # if not bb_instr.plan_taken:
                 ret.append((curr_addr, False, bb_instr.rs1)) # rs1 is the first  dependent register.
                 ret.append((curr_addr, False, bb_instr.rs2)) # rs2 is the second dependent register.
-                #print(f'\033[36m[TRACE]\033[m {hex(curr_addr)=} {bb_instr.rs1=} {bb_instr.rs2=}')
+                #print(f'\033[36m[TRACE]\033[m {hex(curr_addr)=} {bb_instr.rs1=} {bb_instr.rs2=} {bb_instr.instr_str=}')
+
+    #for addr, _, reg in ret: print(f'{hex(addr)=} {reg=}')
     return ret
 
 # @brief generates the register dump requests made to spike for pruning.
@@ -202,19 +205,37 @@ def _feed_regdump_to_instrs(fuzzerstate, regdumps: list):
                     bb_instr.rtl_offset = bb_instr.spike_resolution_offset
                     #print(f'\033[36m[TRACE]\033[m (2) {bb_instr.producer_id=} {hex(bb_instr.rtl_offset)=}')
 
+
 def _transmit_addrs_to_producers_for_spike_resolution(fuzzerstate):
-    for bb_instrlist in fuzzerstate.instr_objs_seq:
-        for bb_instr in bb_instrlist:
+    # XXX: get value from `producer_id_to_tgtaddr`, set to register by `lui` and `addi`
+    #      when `lui` and `addi` (ISAInstrClass.REGFSM) being created,
+    #      they are labeled `producer_id` 1, 2, ...
+    #      
+    #for producer_id, tgt_addr in fuzzerstate.producer_id_to_tgtaddr.items(): print(f'{producer_id=} {hex(tgt_addr)=}')
+
+    for j, bb_instrlist in enumerate(fuzzerstate.instr_objs_seq):
+        for i, bb_instr in enumerate(bb_instrlist):
+            addr = fuzzerstate.bb_start_addr_seq[j] + i * 4
+            #print(f'{hex(addr)=}')
+            #print(f'{hex(addr)=} {bb_instr=}')
             if isinstance(bb_instr, PlaceholderProducerInstr0):
+                #print(f'{hex(addr)=} {bb_instr.producer_id=}')
                 if bb_instr.producer_id not in fuzzerstate.producer_id_to_tgtaddr:
                     # We cannot provide a totally random value in all cases. Some CSRs will not tolerate it.
                     # So far, I think the only CSR that does not tolerate random values and that has a producer id is tvec.
                     # In the future, we may want to check the type of instruction that has this producer id
                     fuzzerstate.producer_id_to_tgtaddr[bb_instr.producer_id] = random.randrange(1 << 30) << 2
+                assert bb_instr.spike_resolution_offset is None
                 bb_instr.spike_resolution_offset = fuzzerstate.producer_id_to_tgtaddr[bb_instr.producer_id]
+                #print('bb_instr.spike_resolution_offset:', hex(bb_instr.spike_resolution_offset))
             elif isinstance(bb_instr, PlaceholderProducerInstr1):
+                assert bb_instr.spike_resolution_offset is None
                 # print('Determ for prod id', bb_instr.producer_id, hex(fuzzerstate.producer_id_to_tgtaddr[bb_instr.producer_id]))
                 bb_instr.spike_resolution_offset = fuzzerstate.producer_id_to_tgtaddr[bb_instr.producer_id]
+            else:
+                pass
+            #print(f'{addr:08x} {bb_instr.gen_bytecode_int(is_spike_resolution=True):08x} {bb_instr.__class__.__name__}')
+
 
 # Check that the PC trace from spike matches with the expected PC trace
 def _check_pc_trace_from_spike(fuzzerstate, spike_pc_seq):
@@ -240,6 +261,7 @@ def _check_pc_trace_from_spike(fuzzerstate, spike_pc_seq):
 def spike_resolution(fuzzerstate, check_pc_spike_again: bool = False):
     design_name = fuzzerstate.design_name
     design_march_flags_nocompressed = get_design_march_flags_nocompressed(design_name)
+    assert design_march_flags_nocompressed == 'rv64g'
 
     _transmit_addrs_to_producers_for_spike_resolution(fuzzerstate)
     # print('start addrs', list(map(hex, fuzzerstate.bb_start_addr_seq)))
@@ -251,7 +273,7 @@ def spike_resolution(fuzzerstate, check_pc_spike_again: bool = False):
     flat_instr_objs = list(itertools.chain.from_iterable(fuzzerstate.instr_objs_seq))
     # len(flat_instr_objs)+1: the +1 is to reach the final basic block and thereby overwrite the potential destination register of a jal/jalr
     regvals, (finalintregvals_spikeresol, finalfpuregvals_spikeresol) = run_trace_regs_at_pc_locs(
-            fuzzerstate.instance_to_str(),
+            fuzzerstate.instance_to_str(),  # `65536_boom_5000017_51`
             spike_resolution_elfpath,
             design_march_flags_nocompressed,
             SPIKE_STARTADDR,

@@ -410,6 +410,7 @@ def gen_medeleg_instr(fuzzerstate):
         supported_medeleg_bits >>= 1
     del supported_medeleg_bits
     # print('Supported medeleg bits', supported_medeleg_bits_arr)
+    assert supported_medeleg_bits_arr == [1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1]
     for bit_id, bit_val in enumerate(supported_medeleg_bits_arr):
         # The line below is a cool idea but makes the analysis more difficult, so we don't do it for now and we AND with bit_val
         # random_bit = random.randint(0, 1) # If this exception type is supported by the CPU, then the bit must be the same in Spike and in the CPU

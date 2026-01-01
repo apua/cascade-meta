@@ -263,13 +263,19 @@ def create_targeted_producer1_instrobj(fuzzerstate):
     return [PlaceholderProducerInstr1(rd, fuzzerstate.intregpickstate.get_producer_id(rd), fuzzerstate.is_design_64bit)]
 
 def create_targeted_consumer_instrobj(fuzzerstate):
-    rdep = fuzzerstate.intregpickstate.pick_int_inputreg_nonzero(False) # We want to create dependencies, therefore we choose not to accept x0
+    # We want to create dependencies, therefore we choose not to accept x0
+    rdep = fuzzerstate.intregpickstate.pick_int_inputreg_nonzero(False)
+
     rprod = fuzzerstate.intregpickstate.pick_int_reg_in_state(IntRegIndivState.PRODUCED1)
     # WARNING: We CANNOT throw a PRODUCEDX into the nature because its value will change between spike and RTL.
     rd = rprod
     fuzzerstate.intregpickstate.set_regstate(rprod, IntRegIndivState.CONSUMED)
     if fuzzerstate.is_design_64bit:
-        return [PlaceholderPreConsumerInstr(rprod), PlaceholderPreConsumerInstr(rdep), PlaceholderConsumerInstr(rd, rdep, rprod, fuzzerstate.intregpickstate.get_producer_id(rprod))]
+        return [
+            PlaceholderPreConsumerInstr(rprod),
+            PlaceholderPreConsumerInstr(rdep),
+            PlaceholderConsumerInstr(rd, rdep, rprod, fuzzerstate.intregpickstate.get_producer_id(rprod)),
+            ]
     else:
         return [PlaceholderConsumerInstr(rd, rdep, rprod, fuzzerstate.intregpickstate.get_producer_id(rprod))]
 

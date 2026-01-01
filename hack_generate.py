@@ -79,7 +79,7 @@ def to_sections(fuzzerstate) -> dict:
         return instruction.gen_bytecode_int(is_spike_resolution=False)
 
     # The first and generated basic blocks
-    print(f'{list(map(hex, fuzzerstate.bb_start_addr_seq))=}')
+    #print(f'{list(map(hex, fuzzerstate.bb_start_addr_seq))=}')
     if fuzzerstate.nmax_bbs is not None:
         assert len(fuzzerstate.bb_start_addr_seq) == max(fuzzerstate.nmax_bbs, 1)
         assert len(fuzzerstate.instr_objs_seq) == max(fuzzerstate.nmax_bbs, 1)
@@ -261,8 +261,8 @@ assert (L := len(expected_floatregvals)) == fuzzerstate.num_pickable_floating_re
 #        )
 print('\033[33m[INFO] to ELF\033[m')
 entry_point = fuzzerstate.design_base_addr
-dump_curr_bytearray(fuzzerstate, filename='out.txt')
-dump_sections(to_sections(fuzzerstate), entry_point, fuzzerstate.memsize, filename='gen.txt')
+#dump_curr_bytearray(fuzzerstate, filename='out.txt')
+#dump_sections(to_sections(fuzzerstate), entry_point, fuzzerstate.memsize, filename='gen.txt')
 to_elf(to_sections(fuzzerstate), entry_point, fuzzerstate.memsize,
        filename=f'rtl_{fuzzerstate.memview.memsize}_{fuzzerstate.design_name}_{fuzzerstate.randseed}_{fuzzerstate.nmax_bbs}.elf')
 

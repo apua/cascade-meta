@@ -84,10 +84,10 @@ def gen_basicblocks(fuzzerstate):
     # XXX: unknown usage
     # Finally, generate the store locations. This can be swapped with generating the final basic block.
     assert len(fuzzerstate.memview.freepairs) == 5
+    assert len(fuzzerstate.memstorestate.store_locations) == 0
     fuzzerstate.memstorestate.init_store_locations(fuzzerstate.num_store_locations, fuzzerstate.memview)
     assert len(fuzzerstate.memview.freepairs) == 28
-    assert len(fuzzerstate.memstorestate.store_locations) == 23
-
+    assert len(fuzzerstate.memstorestate.store_locations) == 23  # XXX: used on load/store?
     assert fuzzerstate.curr_bb_start_addr == 0x0
     assert fuzzerstate.get_num_fuzzing_instructions_sofar() == 0, "We should have generated only one basic block so far."
     assert fuzzerstate.has_reached_max_instr_num() == False, "We should not have reached the max number of instructions yet."
@@ -118,7 +118,6 @@ def gen_basicblocks(fuzzerstate):
         fuzzerstate.memview.alloc_mem_range(fuzzerstate.next_bb_addr, BASIC_BLOCK_MIN_SPACE)
 
     #assert fuzzerstate.is_fpu_activated is False, f'{fuzzerstate.is_fpu_activated=}'
-    print(f'{hex(fuzzerstate.bb_start_addr_seq[-1])=}')
 
     ########################################
 
@@ -126,15 +125,16 @@ def gen_basicblocks(fuzzerstate):
     # Find a suitable last bb and connect it with the final block
     success = pop_last_bbs_to_connect_with_final_block(fuzzerstate)
     assert success is True
-    assert len(fuzzerstate.instr_objs_seq) in (2, 1, fuzzerstate.nmax_bbs, fuzzerstate.nmax_bbs-1)
+    #assert len(fuzzerstate.instr_objs_seq) in (2, 1, fuzzerstate.nmax_bbs, fuzzerstate.nmax_bbs-1)
 
     # Generate the content of the final basic block, now that we know the final privilege level.
     print('\033[33m[INFO]\033[m generate final basic block')
     assert fuzzerstate.final_bb == []
     fuzzerstate.final_bb = finalblock(fuzzerstate, fuzzerstate.design_name)
-    assert len(fuzzerstate.final_bb) in (85, 56)
+    #assert len(fuzzerstate.final_bb) in (85, 56)
 
 
+    print(f'\033[33m[INFO]\033[m generate blacklist')
     # XXX: update `memview_blacklist`, effect the value of placeholder
     # Forbid loads from addresses where instructions change between spike resolution and RTL sim.
     blacklist_changing_instructions(fuzzerstate)
@@ -145,10 +145,10 @@ def gen_basicblocks(fuzzerstate):
 
     # Generate addresses for memory operations
     memop_addrs = gen_memop_addrs(fuzzerstate)
-    print(f'{[hex(a) for a in memop_addrs]=}')
+    #print(f'{[hex(a) for a in memop_addrs]=}')
     fuzzerstate.producer_id_to_tgtaddr, fuzzerstate.producer_id_to_noreloc_spike = gen_producer_id_to_tgtaddr(fuzzerstate, memop_addrs)
-    print(f'{len(fuzzerstate.producer_id_to_tgtaddr)=}')
-    print(f'{len(fuzzerstate.producer_id_to_noreloc_spike)=}')
+    #print(f'{len(fuzzerstate.producer_id_to_tgtaddr)=}')
+    #print(f'{len(fuzzerstate.producer_id_to_noreloc_spike)=}')  # XXX: unused
 
     # Debug only
     # for bb_id, bb in enumerate(fuzzerstate.instr_objs_seq):
@@ -160,7 +160,6 @@ def gen_basicblocks(fuzzerstate):
     #             print('Plan taken:', bb_instr.plan_taken)
     # print('Start addr:', hex(fuzzerstate.bb_start_addr_seq[147]))
 
-    print('\033[36m[TRACE]\033[m end of change fuzzerstate')
 
 def gen_basicblock(fuzzerstate) -> bool:
     """
@@ -707,9 +706,10 @@ def alloc_final_basic_block(fuzzerstate):
 
     # XXX: additional 3 + 1 + 5 = 9 instructions
     #      moreover, it seems accidentally multiplied by 4
+    # XXX: 14 rather than 10 ...
     finalblock_size = (10 + 2 * MAX_NUM_PICKABLE_REGS + 2 * MAX_NUM_PICKABLE_FLOATING_REGS - 1) * 4  # XXX: strange formula
     lenbytes = finalblock_size * 4
-    print(f'finalblock_size={hex(finalblock_size)} lenbytes={hex(lenbytes)}')
+    #print(f'finalblock_size={hex(finalblock_size)} lenbytes={hex(lenbytes)}')
     start_address = fuzzerstate.memview.gen_random_free_addr(2, lenbytes, 0, fuzzerstate.memsize)
     assert start_address is not None, f"Maybe you should create the final basic block earlier in the creation of the test case."
     fuzzerstate.memview.alloc_mem_range(start_address, lenbytes)
@@ -718,29 +718,217 @@ def alloc_final_basic_block(fuzzerstate):
     #print(f'{hex(fuzzerstate.final_bb_base_addr)=}')
 
 
+from cascade import cfinstructionclasses as cf
+placeholder = (
+        cf.PlaceholderProducerInstr0,
+        cf.PlaceholderProducerInstr1,
+        cf.PlaceholderPreConsumerInstr,
+        cf.PlaceholderConsumerInstr,
+        )
+load_store = sum((
+        INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.MEM],
+        INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.MEM64],
+        INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.MEMFPU],
+        INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.MEMFPUD],
+        ), [])
+
 def gen_memop_addrs(fuzzerstate):
-    from cascade import cfinstructionclasses as cf
-    control_flow = (
-            cf.PlaceholderProducerInstr0,
-            cf.PlaceholderProducerInstr1,
-            cf.PlaceholderPreConsumerInstr,
-            cf.PlaceholderConsumerInstr,
-            )
-    load_store = sum((
-            INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.MEM],
-            INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.MEM64],
-            INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.MEMFPU],
-            INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.MEMFPUD],
-            ), [])
     ret = []
     for instruction in (bb_instr for bb_instrlist in fuzzerstate.instr_objs_seq for bb_instr in bb_instrlist):
-        if not isinstance(instruction, control_flow) and instruction.instr_str in load_store:
+        # XXX: filter placeholder out because it does not have `.instr_str`
+        if not isinstance(instruction, placeholder) and instruction.instr_str in load_store:
+            # XXX: if `load`, take `store` address or generate a free address;
+            #      otherwise, take `store` address
             memop_addr = pick_memop_addr(
                     fuzzerstate,
                     is_curr_load=is_instrstr_load(instruction.instr_str),
                     alignment_bits=get_alignment_bits(instruction.instr_str),
                     )
             ret.append(memop_addr)
-
-    assert ret == [0xe30, 0xb3e0, 0x24f0, 0xb3e0, 0xb3e0, 0x7970, 0xb3e0, 0xb3e0, 0x2168, 0xb3e0, 0xb3e0, 0xd328, 0xb4d0, 0xb3e0, 0xe248, 0x7b68, 0x8410, 0xf660, 0x69b8, 0xb3e0, 0xcd38, 0xb460, 0xc7f8, 0xb3e0, 0xb3e0, 0xa718, 0xb600, 0xb3e0, 0x9b78, 0xb3e0, 0xb3e0, 0xb3e0, 0xb3e4, 0xb3e4, 0xcf40, 0xa938, 0x2904, 0x1220, 0x9ea8, 0x6f2e, 0x278, 0x546a, 0xb3e6, 0xe500, 0xb3e4, 0xb3e0, 0xb3e4, 0x934d, 0xb3e6, 0xb3e0, 0xb3e0, 0x16ee, 0xb3e4, 0xef14, 0xf519, 0xb3e5, 0xb3e0, 0xb3e4, 0x92fc, 0xb3e4, 0xb3e0, 0xfcb0, 0xb3e4, 0xb3e0, 0xb3e0, 0xb3e4]
+    #assert ret == [0xe30, 0xb3e0, 0x24f0, 0xb3e0, 0xb3e0, 0x7970, 0xb3e0, 0xb3e0, 0x2168, 0xb3e0, 0xb3e0, 0xd328, 0xb4d0, 0xb3e0, 0xe248, 0x7b68, 0x8410, 0xf660, 0x69b8, 0xb3e0, 0xcd38, 0xb460, 0xc7f8, 0xb3e0, 0xb3e0, 0xa718, 0xb600, 0xb3e0, 0x9b78, 0xb3e0, 0xb3e0, 0xb3e0, 0xb3e4, 0xb3e4, 0xcf40, 0xa938, 0x2904, 0x1220, 0x9ea8, 0x6f2e, 0x278, 0x546a, 0xb3e6, 0xe500, 0xb3e4, 0xb3e0, 0xb3e4, 0x934d, 0xb3e6, 0xb3e0, 0xb3e0, 0x16ee, 0xb3e4, 0xef14, 0xf519, 0xb3e5, 0xb3e0, 0xb3e4, 0x92fc, 0xb3e4, 0xb3e0, 0xfcb0, 0xb3e4, 0xb3e0, 0xb3e0, 0xb3e4]
     return ret
+
+
+def gen_producer_id_to_tgtaddr(fuzzerstate, memop_addrs) -> tuple[dict[producer_id, tgt_addr], dict[producer_id, bool]]:
+    """
+    return :dict:`producer_id_to_tgtaddr` and :dict:`producer_id_to_noreloc_spike`
+    """
+    # Two steps. First, generate producer_id_to_tgtaddr. Then, use it to populate 
+    # the producers with target addresses. The second step is done in another function.
+
+    # Step 1
+    index_in_memaddr_array = 0
+    # This variable lets us know to which address we wish to jump when some CF
+    # s instruction is taken
+    index_in_bb_start_addr_seq = 1 
+    # producer_id_to_tgtaddr[producer_id] = tgt_addr
+    producer_id_to_tgtaddr = dict() 
+    # producer_id_to_noreloc_spike[producer_id] = bool, where bool is true if the 
+    # value we want to specify should not be relocated for spike
+    producer_id_to_noreloc_spike = dict() 
+
+    # To facilitate backward propagation of addresses during exceptions, we recall the tvec writes.
+    # When they are consumed, we forget them.
+    last_mtvec = None # last_mtvec is a tuple (bb_id, instr_id)
+    last_stvec = None # last_stvec is a tuple (bb_id, instr_id)
+    last_mepc = None  # last_mepc  is a tuple (bb_id, instr_id)
+    last_sepc = None  # last_sepc  is a tuple (bb_id, instr_id)
+
+    for bb_id, bb_instrlist in enumerate(fuzzerstate.instr_objs_seq):
+        for bb_instr_id, bb_instr in enumerate(bb_instrlist):
+
+            ###
+            # First check for instructions that do not have an instruction string, such as
+            #  placeholder instructions or some CSR write instructions.
+            ###
+
+            if isinstance(bb_instr, placeholder):
+                pass
+
+            # To facilitate backward propagation of addresses during exceptions
+            elif isinstance(bb_instr, TvecWriterInstruction):
+                if bb_instr.is_mtvec:
+                    last_mtvec = (bb_id, bb_instr_id)
+                else:
+                    last_stvec = (bb_id, bb_instr_id)
+
+            # To facilitate backward propagation of addresses during trap returns
+            elif isinstance(bb_instr, EPCWriterInstruction):
+                if bb_instr.is_mepc:
+                    last_mepc = (bb_id, bb_instr_id)
+                else:
+                    last_sepc = (bb_id, bb_instr_id)
+
+            # To facilitate backward propagation of addresses during exceptions
+            elif isinstance(bb_instr, GenericCSRWriterInstruction):
+                # For producer_id_to_noreloc_spike
+                if bb_instr.csr_instr.csr_id == CSR_IDS.MEDELEG:
+                    producer_id_to_noreloc_spike[bb_instr.producer_id] = True
+
+                if DO_ASSERT:
+                    assert bb_instr.producer_id == -1 or not bb_instr.producer_id in producer_id_to_tgtaddr, "producer_id {} already in producer_id_to_tgtaddr".format(bb_instr.producer_id)
+                producer_id_to_tgtaddr[bb_instr.producer_id] = bb_instr.val_to_write_cpu
+
+            # In case of a privilege descent instruction
+            elif isinstance(bb_instr, PrivilegeDescentInstruction):
+                pass
+                # XXX: won't enter this branch
+
+                # Extremely similar to handling exception instruction below
+                # Check that a corresponding xepc has been setup
+                if DO_ASSERT:
+                    assert (bb_instr.is_mret and last_mepc) or (not bb_instr.is_mret and last_sepc), "No epc found for privilege descent instruction. Values are: last_mepc = {}, last_sepc = {}, bb_instr.is_mret = {}".format(last_mepc, last_sepc, bb_instr.is_mret)
+
+                # Get the epc instr's producer id
+                if bb_instr.is_mret:
+                    epc_producer_id = fuzzerstate.instr_objs_seq[last_mepc[0]][last_mepc[1]].producer_id
+                else:
+                    epc_producer_id = fuzzerstate.instr_objs_seq[last_sepc[0]][last_sepc[1]].producer_id
+
+                # Get the next bb's start address
+                if index_in_bb_start_addr_seq == len(fuzzerstate.bb_start_addr_seq):
+                    if DO_ASSERT:
+                        assert fuzzerstate.final_bb_base_addr is not None and fuzzerstate.final_bb_base_addr >= 0
+                    addr = fuzzerstate.final_bb_base_addr # Final basic block
+                else:
+                    addr = fuzzerstate.bb_start_addr_seq[index_in_bb_start_addr_seq]
+                    index_in_bb_start_addr_seq += 1
+                if DO_ASSERT:
+                    assert epc_producer_id > 0
+
+                if DO_ASSERT:
+                    assert epc_producer_id == -1 or not epc_producer_id in producer_id_to_tgtaddr, "producer_id {} already in producer_id_to_tgtaddr".format(bb_instr.producer_id)
+                producer_id_to_tgtaddr[epc_producer_id] = addr
+                # Do not use twice the same epc value because we want to jump to 
+                # a new basic block.
+                if bb_instr.is_mret:
+                    last_mepc = None
+                else:
+                    last_sepc = None
+
+            # In case of an exception instruction, find the last corresponding 
+            # tvec and transmit the target address
+            elif isinstance(bb_instr, ExceptionInstruction):
+                # Check that a corresponding tvec has been setup
+                if DO_ASSERT:
+                    assert (bb_instr.is_mtvec and last_mtvec) or (not bb_instr.is_mtvec and last_stvec), "No tvec found for exception instruction. Values are: last_mtvec = {}, last_stvec = {}, bb_instr.is_mtvec = {}".format(last_mtvec, last_stvec, bb_instr.is_mtvec)
+
+                # Get the tvec instr's producer id
+                if bb_instr.is_mtvec:
+                    tvec_producer_id = fuzzerstate.instr_objs_seq[last_mtvec[0]][last_mtvec[1]].producer_id
+                else:
+                    tvec_producer_id = fuzzerstate.instr_objs_seq[last_stvec[0]][last_stvec[1]].producer_id
+
+                # Get the next bb's start address
+                if index_in_bb_start_addr_seq == len(fuzzerstate.bb_start_addr_seq):
+                    # XXX: this branch is never taken
+                    if DO_ASSERT:
+                        assert fuzzerstate.final_bb_base_addr is not None and fuzzerstate.final_bb_base_addr >= 0
+                    addr = fuzzerstate.final_bb_base_addr # Final basic block
+                else:
+                    addr = fuzzerstate.bb_start_addr_seq[index_in_bb_start_addr_seq]
+                    index_in_bb_start_addr_seq += 1
+                if DO_ASSERT:
+                    assert tvec_producer_id > 0
+
+                if DO_ASSERT:
+                    assert tvec_producer_id == -1 or not tvec_producer_id in producer_id_to_tgtaddr, "producer_id {} already in producer_id_to_tgtaddr".format(bb_instr.producer_id)
+                producer_id_to_tgtaddr[tvec_producer_id] = addr
+
+                # Do not use twice the same tvec value because we want to jump to a new basic block.
+                if bb_instr.is_mtvec:
+                    last_mtvec = None
+                else:
+                    last_stvec = None
+
+                # Some exceptions also require their own produced register, not only 
+                # for tvec but also to make a targeted memory operation
+                if bb_instr.producer_id is None:
+                    #print(f'{bb_instr=}')
+                    pass
+                else:
+                    if not isinstance(bb_instr, MisalignedMemInstruction):
+                        raise Exception("We expected only MisalignedMemInstruction to have a producer_id.")
+
+                    producer_id_to_tgtaddr[bb_instr.producer_id] = addr = bb_instr.misaligned_addr
+
+            ###
+            # Else, check for "traditional" instructions, which have an instruction string.
+            ###
+
+            elif bb_instr.instr_str in INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.JALR]:
+                if index_in_bb_start_addr_seq == len(fuzzerstate.bb_start_addr_seq):
+                    if DO_ASSERT:
+                        assert fuzzerstate.final_bb_base_addr is not None and fuzzerstate.final_bb_base_addr >= 0
+                    addr = fuzzerstate.final_bb_base_addr # Final basic block
+                else:
+                    addr = fuzzerstate.bb_start_addr_seq[index_in_bb_start_addr_seq]
+                    index_in_bb_start_addr_seq += 1
+
+                if DO_ASSERT:
+                    assert bb_instr.producer_id > 0
+                    assert bb_instr.producer_id == -1 or not bb_instr.producer_id in producer_id_to_tgtaddr, "producer_id {} already in producer_id_to_tgtaddr".format(bb_instr.producer_id)
+
+                producer_id_to_tgtaddr[bb_instr.producer_id] = addr
+
+            elif bb_instr.instr_str in INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.JAL] or \
+                (bb_instr.instr_str in INSTRUCTIONS_BY_ISA_CLASS[ISAInstrClass.BRANCH] and bb_instr.plan_taken):
+                # If this is the last before the final block, we need to steer toward the final block.
+                if index_in_bb_start_addr_seq == len(fuzzerstate.bb_start_addr_seq):
+                    if DO_ASSERT:
+                        assert fuzzerstate.final_bb_base_addr is not None and fuzzerstate.final_bb_base_addr >= 0
+                    curr_addr = fuzzerstate.bb_start_addr_seq[bb_id] + bb_instr_id * 4 # NO_COMPRESSED
+                    bb_instr.imm = fuzzerstate.final_bb_base_addr - curr_addr
+                index_in_bb_start_addr_seq += 1
+
+            elif bb_instr.instr_str in load_store:
+                # XXX: in initial block, `.producer_id` of fld/ld are `-1`
+                #print(f'{bb_instr.instr_str=} {bb_instr.producer_id=} {hex(memop_addrs[index_in_memaddr_array])=}')
+                producer_id_to_tgtaddr[bb_instr.producer_id] = memop_addrs[index_in_memaddr_array]
+                index_in_memaddr_array += 1
+
+            else:
+                pass
+
+    assert index_in_memaddr_array == len(memop_addrs)
+    return producer_id_to_tgtaddr, producer_id_to_noreloc_spike

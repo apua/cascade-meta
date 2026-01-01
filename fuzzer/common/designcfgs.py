@@ -28,7 +28,7 @@ def get_design_cascade_path(design_name):
 # @return the design config of the relevant repo.
 @cache
 def get_design_cfg(design_name):
-    print('DEBUG: design_cfg `%s`' % os.path.join(get_design_cascade_path(design_name), "meta", "cfg.json"))
+    #print('DEBUG: design_cfg `%s`' % os.path.join(get_design_cascade_path(design_name), "meta", "cfg.json"))
     with open(os.path.join(get_design_cascade_path(design_name), "meta", "cfg.json"), "r") as f:
         return json.load(f)
 

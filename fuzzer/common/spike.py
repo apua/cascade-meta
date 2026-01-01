@@ -127,7 +127,7 @@ def run_trace_regs_at_pc_locs(identifier_str: str, elfpath: str, rvflags: str, s
 
     # Second, run the Spike command
     spike_shell_command = f'spike -d --debug-cmd={path_to_debug_file} --isa={rvflags} --pc={startpc} {elfpath}'
-    print(f'\033[35m[DEBUG]\033[m $ {spike_shell_command}')
+    #print(f'\033[35m[DEBUG]\033[m $ {spike_shell_command}')
     spike_out = subprocess.run(spike_shell_command, shell=True, capture_output=True).stderr
     #print(spike_out.decode())
     #try:
