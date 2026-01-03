@@ -190,3 +190,20 @@ load/store 使用的 memory address 有兩種:
 
 修正 final block 的 store location 要從 0x60000000 挪到例如 0x90000000,
 但這樣的話 lui + addi 是不夠的, 至少需要再補上 slli + srli 修正 upper 32 bits.
+
+Verilator 執行時, 直接評估所需要的 cycle 數量上界,
+跑完就 dump register values 到 stdout.
+原始碼 SystemVerilog 和 C++ 分別放在 cascade-meta 和 casscade-chipyard.
+
+所以在 FPGA 上模擬, 需要預先知道座落在 final block last instruction 的 loop address,
+設定 break point 在那邊等.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+reduce_program 的目的是將 ELF 的執行過程變小, 掐頭且去尾.
+掐頭去尾的過程是 binary search, 遞迴的修改 ELF 並透過重跑 simulator 檢查 failure 是否消失.
+刪減 basic block 的方法是覆寫 instruction, 例如 jump, CSR & GPR.
+當下的狀態則透過 Spike 重新確認.
+
+.. binary search 反倒慢, 不如一次分析清楚所有狀態, 然後一邊跑一邊比較,
+   一樣可以縮小範圍.
